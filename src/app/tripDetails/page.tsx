@@ -370,7 +370,7 @@ const AIAssistantPanel: React.FC = () => {
 
       {/* AI suggestion bubble */}
       <div className="rounded-xl bg-[#070910]/60 border border-white/[0.06] p-4 text-sm text-slate-300 leading-relaxed italic">
-        "I've noticed a gap in your Kyoto itinerary for July 21st. Would you like me to suggest exclusive Kaiseki dining or a private Fushimi Inari-taisha tour?"
+        &quot;I&apos;ve noticed a gap in your Kyoto itinerary for July 21st. Would you like me to suggest exclusive Kaiseki dining or a private Fushimi Inari-taisha tour?&quot;
       </div>
 
       {/* Quick actions */}

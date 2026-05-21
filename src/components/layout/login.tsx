@@ -166,7 +166,7 @@ export default function LoginPage() {
       <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-10">
         <div className="w-full max-w-md">
           {/* Logo */}
-          {/* <div className="mb-10 text-center">
+          <div className="mb-10 text-center">
             <div className="fade-up mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 shadow-[0_0_45px_rgba(34,211,238,0.5)]">
               <Sparkles className="h-8 w-8 text-white" />
             </div>
@@ -178,7 +178,7 @@ export default function LoginPage() {
             <p className="fade-up mt-3 text-sm text-slate-400">
               AI Powered Luxury Travel Planning
             </p>
-          </div> */}
+          </div>
 
           {/* Card */}
           <div
