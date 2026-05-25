@@ -36,3 +36,17 @@ export interface Deadline {
   progress: number;
   variant: "urgent" | "normal";
 }
+export interface Member {
+  id: string;
+  userId: string;
+  memberName: string;
+  avatar?: string;
+  role: "OWNER" | "MEMBER";
+  joinedAt: string;
+}
+
+export interface TripCollaborators {
+  tripId: string;
+  tripTitle: string;
+  members: Member[];
+}
