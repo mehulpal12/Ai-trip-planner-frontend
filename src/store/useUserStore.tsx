@@ -1,8 +1,7 @@
 import { create } from "zustand";
-// 1. Import your auth store to grab the actual login token
 import { useAuthStore } from "@/lib/authStore";
 
-interface UserProfile {
+export interface UserProfile {
   id: string;
   bio?: string;
   preferences?: {
@@ -11,38 +10,48 @@ interface UserProfile {
   };
 }
 
-interface Trip {
+export interface Trip {
   id: string;
   destination: string;
   startDate: string;
   status: "upcoming" | "completed";
 }
 
-interface FullUserData {
+export interface FullUserData {
   id: string;
   name: string;
   email: string;
   role: string;
+  avatar?: string;
+  image?: string; 
   profile?: UserProfile;
   trips: Trip[];
 }
 
 interface UserStoreState {
   data: FullUserData | null;
+  user: FullUserData | null; 
   isLoading: boolean;
   error: string | null;
-  fetchUserData: () => Promise<void>;
+  fetchUser: (forceRefresh?: boolean) => Promise<void>;
+  fetchUserData: (forceRefresh?: boolean) => Promise<void>;
   updateUserPreferences: (prefs: Partial<UserProfile["preferences"]>) => Promise<boolean>;
   clearUserData: () => void;
 }
 
 export const useUserStore = create<UserStoreState>((set, get) => ({
   data: null,
+  user: null,
   isLoading: false,
   error: null,
 
-  fetchUserData: async () => {
-    if (get().data) {
+  fetchUser: async (forceRefresh = false) => {
+    await get().fetchUserData(forceRefresh);
+  },
+
+  fetchUserData: async (forceRefresh = false) => {
+    // Only skip fetching if data exists AND we aren't explicitly forcing a refresh
+    if (get().data && !forceRefresh) {
       console.log("🟢 Zustand: Data already cached, skipping fetch.");
       return;
     }
@@ -50,7 +59,6 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      // 2. Extract the actual active token from your authentication store state
       const accessToken = useAuthStore.getState().accessToken;
 
       if (!accessToken) {
@@ -58,29 +66,36 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
       }
 
       console.log("🔵 Zustand: Fetching profile from Express backend...");
+      
+      // NOTE: Ensure port 4000 matches your Auth/User Microservice Port configuration!
       const response = await fetch("http://localhost:4000/api/users/profile", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          // 3. Pass the REAL token value
           "Authorization": `Bearer ${accessToken}`,
         },
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch. Server responded with status: ${response.status}`);
+        throw new Error(`Failed to fetch profile. Server responded with status: ${response.status}`);
       }
 
-      // Backend wraps data inside { success, data }
       const result = await response.json();
-      const payload: FullUserData = result.data;
+      
+      // Unwrap standard API wrapping envelopes ({ success: true, data: {...} }) safely
+      const payload: FullUserData = result.data || result;
       console.log("✨ Zustand Fetch Success! Incoming Data Payload:", payload);
 
-      set({ data: payload, isLoading: false });
+      set({ 
+        data: payload, 
+        user: payload, 
+        isLoading: false,
+        error: null
+      });
     } catch (err: unknown) {
       const errorMessage = (err as Error).message || "An unexpected error occurred";
       console.error("❌ Zustand Fetch Error:", errorMessage);
-      set({ error: errorMessage, isLoading: false });
+      set({ error: errorMessage, isLoading: false, data: null, user: null });
     }
   },
 
@@ -97,18 +112,17 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
 
       console.log("🔄 Zustand Optimistic Update: Patching preferences with:", newPrefs);
 
-      set({
-        data: {
-          ...currentData,
-          profile: {
-            ...currentData.profile!,
-            preferences: updatedPreferences as UserProfile["preferences"],
-          },
+      const optimizedState: FullUserData = {
+        ...currentData,
+        profile: {
+          ...currentData.profile!,
+          id: currentData.profile?.id || "",
+          preferences: updatedPreferences as UserProfile["preferences"],
         },
-      });
+      };
 
-      console.log("📡 Zustand: Syncing preferences via PATCH request...");
-      // 4. Swapped method from 'GET' to 'PATCH' so body parsing works perfectly
+      set({ data: optimizedState, user: optimizedState });
+
       const response = await fetch("http://localhost:4000/api/users/profile", {
         method: "PUT",
         headers: {
@@ -130,6 +144,6 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
 
   clearUserData: () => {
     console.log("🧹 Zustand: Clearing user data state (Logging out)...");
-    set({ data: null, isLoading: false, error: null });
+    set({ data: null, user: null, isLoading: false, error: null });
   },
 }));

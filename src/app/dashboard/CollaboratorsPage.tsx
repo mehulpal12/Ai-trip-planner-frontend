@@ -14,11 +14,9 @@ import {
   X,
   ChevronLeft,
 } from "lucide-react";
+import { TripItem } from "@/features/dashboard/types/dashboard.types";
 
-interface TripItem {
-  id: string;
-  title: string;
-}
+
 
 interface Member {
   id: string;      // The auto-generated ID from Prisma/Neon
@@ -50,9 +48,10 @@ const CollaboratorsPage: React.FC<Props> = ({
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Member | null>(null);
 
-  // Form modified to accept user identifier (Email) instead of a raw DB UUID string
+  // Form structured to capture both structural fields needed by your handler block
   const [formData, setFormData] = useState({
     memberName: "",
+    email: "",
   });
 
   const getHeaders = () => ({
@@ -84,24 +83,25 @@ const CollaboratorsPage: React.FC<Props> = ({
     if (!selectedTrip) return;
 
     try {
-      const response = await fetch(`${API_URL}/${selectedTrip.id}/members`, {
+      const response = await fetch(`${API_URL}/${selectedTrip._id}/members`, {
         method: "POST",
         headers: getHeaders(),
-        // Send email and name; the backend/Prisma handles auto-generating IDs
         body: JSON.stringify(formData),
       });
 
       if (!response.ok) {
-        console.log(response)
-         throw new Error("Failed to add member");}
+        console.log(response);
+        throw new Error("Failed to add member");
+      }
 
       triggerToast("Member added successfully");
       setShowAddModal(false);
       setFormData({
         memberName: "",
+        email: "",
       });
 
-      fetchMembers(selectedTrip.id);
+      fetchMembers(selectedTrip._id);
     } catch {
       triggerToast("Failed to add member");
     }
@@ -112,7 +112,7 @@ const CollaboratorsPage: React.FC<Props> = ({
 
     try {
       const response = await fetch(
-        `${API_URL}/${selectedTrip.id}/members/${member.id}`, // Targeting unique member record ID
+        `${API_URL}/${selectedTrip._id}/members/${member.id}`,
         {
           method: "DELETE",
           headers: getHeaders(),
@@ -138,7 +138,7 @@ const CollaboratorsPage: React.FC<Props> = ({
 
   useEffect(() => {
     if (selectedTrip) {
-      fetchMembers(selectedTrip.id);
+      fetchMembers(selectedTrip._id);
     }
   }, [selectedTrip]);
 
@@ -156,11 +156,11 @@ const CollaboratorsPage: React.FC<Props> = ({
           </div>
 
           <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
-            ={trips.map((trip) => (
+            {trips.map((trip) => (
               <div
-                key={trip.id}
+                key={trip._id}
                 onClick={() => setSelectedTrip(trip)}
-                className="cursor-pointer rounded-2xl border border-white/10 bg-white/[0.03] p-5 hover:bg-white/[0.05]"
+                className="cursor-pointer rounded-2xl border border-white/10 bg-white/[0.03] p-5 hover:bg-white/[0.05] transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <Users className="text-cyan-400" />
@@ -179,7 +179,7 @@ const CollaboratorsPage: React.FC<Props> = ({
         <>
           <button
             onClick={() => setSelectedTrip(null)}
-            className="flex items-center gap-2 text-slate-400 hover:text-cyan-400"
+            className="flex items-center gap-2 text-slate-400 hover:text-cyan-400 transition-colors bg-transparent border-none cursor-pointer"
           >
             <ChevronLeft size={16} />
             Back
@@ -195,7 +195,7 @@ const CollaboratorsPage: React.FC<Props> = ({
 
             <button
               onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500 text-black font-semibold"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500 text-black font-semibold hover:bg-cyan-400 transition-colors cursor-pointer border-none"
             >
               <Plus size={16} />
               Add Member
@@ -211,7 +211,7 @@ const CollaboratorsPage: React.FC<Props> = ({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search members..."
-              className="w-full pl-10 py-3 bg-[#080a10] border border-white/10 rounded-xl text-white"
+              className="w-full pl-10 pr-4 py-3 bg-[#080a10] border border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-500/50"
             />
           </div>
 
@@ -226,7 +226,7 @@ const CollaboratorsPage: React.FC<Props> = ({
               filteredMembers.map((member) => (
                 <div
                   key={member.id}
-                  className="flex justify-between items-center p-4 border-b border-white/5"
+                  className="flex justify-between items-center p-4 border-b border-white/5 last:border-none"
                 >
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-full bg-cyan-500/20 flex items-center justify-center text-white font-bold">
@@ -237,7 +237,6 @@ const CollaboratorsPage: React.FC<Props> = ({
                       <p className="text-white font-medium">
                         {member.memberName}
                       </p>
-
                     </div>
                   </div>
 
@@ -248,7 +247,7 @@ const CollaboratorsPage: React.FC<Props> = ({
 
                     <button
                       onClick={() => setDeleteTarget(member)}
-                      className="text-rose-400 hover:text-rose-300"
+                      className="text-rose-400 hover:text-rose-300 bg-transparent border-none cursor-pointer"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -262,18 +261,19 @@ const CollaboratorsPage: React.FC<Props> = ({
 
       {/* Add Member Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-50">
-          <div className="bg-[#0c0f17] border border-white/10 rounded-2xl p-6 w-full max-w-md">
-            <div className="flex justify-between mb-4">
+        <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-50 p-4">
+          <div className="bg-[#0c0f17] border border-white/10 rounded-2xl p-6 w-full max-w-md relative">
+            <div className="flex justify-between items-center mb-4">
               <h3 className="text-white font-bold">Add Member</h3>
-              <button onClick={() => setShowAddModal(false)}>
-                <X />
+              <button 
+                onClick={() => setShowAddModal(false)}
+                className="text-slate-400 hover:text-white bg-transparent border-none cursor-pointer"
+              >
+                <X size={18} />
               </button>
             </div>
 
             <form onSubmit={handleAddMember} className="space-y-4">
-
-
               <div>
                 <label className="block text-xs font-semibold text-slate-400 mb-1">
                   Display Name
@@ -288,13 +288,32 @@ const CollaboratorsPage: React.FC<Props> = ({
                       memberName: e.target.value,
                     }))
                   }
-                  className="w-full p-3 rounded-xl bg-[#080a10] border border-white/10 text-white placeholder:text-slate-600"
+                  className="w-full p-3 rounded-xl bg-[#080a10] border border-white/10 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500/50"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                  Email Address
+                </label>
+                <input
+                  required
+                  type="email"
+                  placeholder="johndoe@example.com"
+                  value={formData.email}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      email: e.target.value,
+                    }))
+                  }
+                  className="w-full p-3 rounded-xl bg-[#080a10] border border-white/10 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500/50"
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 rounded-xl bg-cyan-500 text-black font-semibold hover:bg-cyan-400 transition-colors"
+                className="w-full py-3 rounded-xl bg-cyan-500 text-black font-semibold hover:bg-cyan-400 transition-colors border-none cursor-pointer"
               >
                 Send Invite / Add Member
               </button>
@@ -305,7 +324,7 @@ const CollaboratorsPage: React.FC<Props> = ({
 
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
-        <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-50">
+        <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-50 p-4">
           <div className="bg-[#0c0f17] border border-white/10 rounded-2xl p-6 w-full max-w-sm">
             <h3 className="text-white font-bold mb-3">Remove Member?</h3>
             <p className="text-slate-400 text-sm mb-5">
@@ -315,13 +334,13 @@ const CollaboratorsPage: React.FC<Props> = ({
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteTarget(null)}
-                className="flex-1 py-2 border border-white/10 rounded-xl text-slate-300 hover:bg-white/5"
+                className="flex-1 py-2 border border-white/10 rounded-xl text-slate-300 hover:bg-white/5 transition-colors bg-transparent cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleRemoveMember(deleteTarget)}
-                className="flex-1 py-2 rounded-xl bg-rose-500 text-white hover:bg-rose-600 transition-colors"
+                className="flex-1 py-2 rounded-xl bg-rose-500 text-white hover:bg-rose-600 transition-colors border-none cursor-pointer"
               >
                 Remove
               </button>

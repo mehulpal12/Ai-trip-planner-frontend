@@ -23,16 +23,13 @@ import {
   Check,
   Users,
 } from "lucide-react";
-// Import the authStore from your lib folder
 import { useAuthStore } from "@/lib/authStore";
-// Import data helpers from country-state-city dependency
 import { Country, City } from "country-state-city";
 
-// Synchronized with Backend Schema
 interface TripItem {
-  _id: string; // Express/MongoDB conventional identifier
+  _id: string; 
   title: string;
-  country?: string; // Optional field added to keep track of selected country
+  country?: string; 
   destination: string;
   startDate: string;
   endDate: string;
@@ -45,33 +42,25 @@ interface TripItem {
 }
 
 export const TripsPage: React.FC = () => {
-  // --- Auth State Token Pull ---
   const token = useAuthStore((state) => state.accessToken);
 
-  // --- Core API Data States ---
   const [trips, setTrips] = useState<TripItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // --- UI Layout & View States ---
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedTrip, setSelectedTrip] = useState<TripItem | null>(null);
 
-  // --- Search, Filter & Pagination States ---
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"title" | "budget" | "date">("date");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 4;
 
-  // --- Modal Controllers ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTrip, setEditingTrip] = useState<TripItem | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
-    null,
-  );
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  // --- Autocomplete UI Dropdown Toggle States ---
   const [showCountryDropdown, setShowCountryDropdown] = useState(false);
   const [showDestinationDropdown, setShowDestinationDropdown] = useState(false);
   const [selectedCountryCode, setSelectedCountryCode] = useState("");
@@ -79,7 +68,6 @@ export const TripsPage: React.FC = () => {
   const countryRef = useRef<HTMLDivElement>(null);
   const destRef = useRef<HTMLDivElement>(null);
 
-  // --- Form Local States ---
   const [formState, setFormState] = useState({
     title: "",
     country: "",
@@ -90,7 +78,6 @@ export const TripsPage: React.FC = () => {
     notes: "",
   });
 
-  // --- Integrated Collaborator Management States ---
   const [members, setMembers] = useState<any[]>([]);
   const [collabLoading, setCollabLoading] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
@@ -98,11 +85,10 @@ export const TripsPage: React.FC = () => {
   const [collabDeleteTarget, setCollabDeleteTarget] = useState<any | null>(null);
   const [newMemberName, setNewMemberName] = useState("");
 
-  // --- Country Data Core ---
   const allCountries = useMemo(() => Country.getAllCountries(), []);
 
   const filteredCountries = useMemo(() => {
-    const query = formState.country.trim().toLowerCase();
+    const query = (formState.country || "").trim().toLowerCase();
     if (query === "") return allCountries.slice(0, 10);
     return allCountries
       .filter((c) => c.name.toLowerCase().includes(query))
@@ -110,7 +96,7 @@ export const TripsPage: React.FC = () => {
   }, [allCountries, formState.country]);
 
   const filteredDestinations = useMemo(() => {
-    const query = formState.destination.trim().toLowerCase();
+    const query = (formState.destination || "").trim().toLowerCase();
     if (selectedCountryCode) {
       const countryCities = City.getCitiesOfCountry(selectedCountryCode) || [];
       if (query === "") return countryCities.slice(0, 15);
@@ -118,7 +104,6 @@ export const TripsPage: React.FC = () => {
         .filter((c) => c.name.toLowerCase().includes(query))
         .slice(0, 15);
     } else {
-      // Smart UX Fallback options when Country is left unselected/blank
       const fallbackCities = [
         { name: "Paris" },
         { name: "New York" },
@@ -132,13 +117,9 @@ export const TripsPage: React.FC = () => {
     }
   }, [selectedCountryCode, formState.destination]);
 
-  // Click outside listener hook to cleanly hide active location menu systems
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        countryRef.current &&
-        !countryRef.current.contains(event.target as Node)
-      ) {
+      if (countryRef.current && !countryRef.current.contains(event.target as Node)) {
         setShowCountryDropdown(false);
       }
       if (destRef.current && !destRef.current.contains(event.target as Node)) {
@@ -166,7 +147,7 @@ export const TripsPage: React.FC = () => {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   });
 
-  // Pipeline 1: GET /api/trips
+  // Pipeline 1: GET /api/trips (CRUD - Read)
   const fetchTrips = async () => {
     setIsLoading(true);
     setApiError(null);
@@ -176,8 +157,19 @@ export const TripsPage: React.FC = () => {
         headers: getHeaders(),
       });
       if (!res.ok) throw new Error(`HTTP Error Status: ${res.status}`);
-      const data = await res.json();
-      setTrips(Array.isArray(data) ? data : data.trips || []);
+      const response = await res.json();
+      
+      const rawTripsData = Array.isArray(response)
+        ? response
+        : response?.data || response?.trips || [];
+        
+      // SENIOR FIX: Map and normalize backend id properties safely to guarantee key consistency
+      const tripsData = rawTripsData.map((trip: any) => ({
+        ...trip,
+        _id: trip._id || trip.id || String(Math.random()),
+      }));
+
+      setTrips(tripsData);
     } catch (err: any) {
       setApiError(err.message || "Failed to download trip modules.");
     } finally {
@@ -193,7 +185,6 @@ export const TripsPage: React.FC = () => {
     fetchTrips();
   }, [token]);
 
-  // Fetch members whenever a specific trip is selected
   const fetchTripMembers = async (tripId: string) => {
     try {
       setCollabLoading(true);
@@ -216,21 +207,26 @@ export const TripsPage: React.FC = () => {
     }
   }, [selectedTrip]);
 
-  // Pipeline 2: POST & PUT Orchestrator
+  // Pipeline 2: POST & PUT Orchestrator (CRUD - Create & Update)
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const payload = {
+        ...formState,
+        budget: Number(formState.budget),
+      };
+
       if (editingTrip) {
         const fallbackTrips = [...trips];
         const updatedTrips = trips.map((t) =>
-          t._id === editingTrip._id ? { ...t, ...formState } : t,
+          t._id === editingTrip._id ? { ...t, ...payload } : t
         );
-        setTrips(updatedTrips as any);
+        setTrips(updatedTrips);
 
         const res = await fetch(`${BASE_URL}/api/trips/${editingTrip._id}`, {
           method: "PUT",
           headers: getHeaders(),
-          body: JSON.stringify(formState),
+          body: JSON.stringify(payload),
         });
 
         if (!res.ok) {
@@ -239,27 +235,27 @@ export const TripsPage: React.FC = () => {
         }
 
         const data = await res.json();
+        const serverTrip = data.trip || data;
+        const finalTrip = { ...serverTrip, _id: serverTrip._id || serverTrip.id || editingTrip._id };
+        
         if (selectedTrip?._id === editingTrip._id) {
-          setSelectedTrip(data.trip || data);
+          setSelectedTrip(finalTrip);
         }
-        triggerToast(
-          `Successfully modified framework for "${formState.title}"`,
-        );
+        triggerToast(`Successfully modified framework for "${formState.title}"`);
       } else {
         const res = await fetch(`${BASE_URL}/api/trips`, {
           method: "POST",
           headers: getHeaders(),
-          body: JSON.stringify(formState),
+          body: JSON.stringify(payload),
         });
 
-        if (!res.ok)
-          throw new Error("Initialization request failed at gateway.");
+        if (!res.ok) throw new Error("Initialization request failed at gateway.");
         const data = await res.json();
+        const serverTrip = data.trip || data;
+        const finalTrip = { ...serverTrip, _id: serverTrip._id || serverTrip.id || String(Math.random()) };
 
-        setTrips([data.trip || data, ...trips]);
-        triggerToast(
-          `"${formState.title}" successfully organized and serialized!`,
-        );
+        setTrips([finalTrip, ...trips]);
+        triggerToast(`"${formState.title}" successfully organized and serialized!`);
       }
       setIsModalOpen(false);
       fetchTrips();
@@ -268,7 +264,7 @@ export const TripsPage: React.FC = () => {
     }
   };
 
-  // Pipeline 3: DELETE /api/trips/:id
+  // Pipeline 3: DELETE /api/trips/:id (CRUD - Delete)
   const handleDeleteTrip = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const target = trips.find((t) => t._id === id);
@@ -287,9 +283,7 @@ export const TripsPage: React.FC = () => {
         setTrips(fallbackTrips);
         throw new Error("Server rejected deletion constraint parameters.");
       }
-      triggerToast(
-        `Archived and completely removed configuration "${target?.title}"`,
-      );
+      triggerToast(`Archived and completely removed configuration "${target?.title}"`);
     } catch (err: any) {
       triggerToast(`Error: ${err.message}`);
     }
@@ -358,31 +352,29 @@ export const TripsPage: React.FC = () => {
     e.stopPropagation();
     setEditingTrip(trip);
 
-    // Lookup matching ISO code if historical country records exist
     const matchedCountry = allCountries.find(
-      (c) => c.name.toLowerCase() === trip.country?.toLowerCase(),
+      (c) => c.name.toLowerCase() === trip.country?.toLowerCase()
     );
     setSelectedCountryCode(matchedCountry ? matchedCountry.isoCode : "");
 
     setFormState({
-      title: trip.title,
+      title: trip.title || "",
       country: trip.country || "",
-      destination: trip.destination,
+      destination: trip.destination || "",
       startDate: formatDateString(trip.startDate),
       endDate: formatDateString(trip.endDate),
-      budget: trip.budget,
-      notes: trip.notes,
+      budget: trip.budget || 0,
+      notes: trip.notes || "",
     });
     setIsModalOpen(true);
   };
 
-  // --- Computational Grid Hooks ---
   const processedTrips = useMemo(() => {
     let filtered = trips.filter(
       (t) =>
         t.title?.toLowerCase().includes(search.toLowerCase()) ||
         t.destination?.toLowerCase().includes(search.toLowerCase()) ||
-        t.country?.toLowerCase().includes(search.toLowerCase()),
+        t.country?.toLowerCase().includes(search.toLowerCase())
     );
 
     return filtered.sort((a, b) => {
@@ -408,7 +400,6 @@ export const TripsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* ── Toast Notifications ── */}
       <AnimatePresence>
         {toast && (
           <motion.div
@@ -423,10 +414,8 @@ export const TripsPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* ── Dynamic Layout Engine ── */}
       {!selectedTrip ? (
         <>
-          {/* Header Management Module */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/[0.06] pb-5">
             <div>
               <h1 className="text-3xl font-bold tracking-tight text-white">
@@ -444,7 +433,6 @@ export const TripsPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Search Filtering Action Strip */}
           <div className="flex flex-col md:flex-row justify-between gap-4 bg-white/[0.02] border border-white/[0.06] p-4 rounded-xl backdrop-blur-xl">
             <div className="relative flex-1">
               <Search
@@ -499,7 +487,6 @@ export const TripsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Core Dynamic Content Container */}
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <Loader2 className="animate-spin text-cyan-500" size={32} />
@@ -633,7 +620,6 @@ export const TripsPage: React.FC = () => {
             </div>
           )}
 
-          {/* Pagination Controls */}
           {totalPages > 1 && (
             <div className="flex justify-center items-center gap-2 pt-4">
               <button
@@ -657,7 +643,6 @@ export const TripsPage: React.FC = () => {
           )}
         </>
       ) : (
-        /* ── Detailed Canvas Focused View ── */
         <div className="space-y-6">
           <button
             onClick={() => setSelectedTrip(null)}
@@ -667,7 +652,6 @@ export const TripsPage: React.FC = () => {
           </button>
 
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-            {/* Left Primary Meta View */}
             <div className="xl:col-span-8 space-y-6">
               <div className="border border-white/[0.07] bg-white/[0.03] backdrop-blur-xl p-6 rounded-2xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 h-32 w-32 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -738,13 +722,11 @@ export const TripsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Dynamic Activities Framework Logger */}
               <div className="border border-white/[0.07] bg-white/[0.03] backdrop-blur-xl p-6 rounded-2xl">
                 <h3 className="text-base font-bold text-white mb-4">
                   Activity Timeline Log
                 </h3>
-                {selectedTrip.activities &&
-                selectedTrip.activities.length > 0 ? (
+                {selectedTrip.activities && selectedTrip.activities.length > 0 ? (
                   <div className="space-y-4 relative before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-px before:bg-white/[0.06]">
                     {selectedTrip.activities.map((act) => (
                       <div key={act.id} className="flex gap-4 relative pl-7">
@@ -760,14 +742,12 @@ export const TripsPage: React.FC = () => {
                   </div>
                 ) : (
                   <p className="text-xs text-slate-500 italic">
-                    No automated tracking changes registered on this channel
-                    framework yet.
+                    No automated tracking changes registered on this channel framework yet.
                   </p>
                 )}
               </div>
             </div>
 
-            {/* Right Side Ownership & Collaborators Context Matrix */}
             <div className="xl:col-span-4 space-y-6">
               <div className="border border-white/[0.07] bg-white/[0.03] backdrop-blur-xl p-5 rounded-2xl">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
@@ -794,7 +774,6 @@ export const TripsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Interactive Collaborators Component Segment */}
               <div className="border border-white/[0.07] bg-white/[0.03] backdrop-blur-xl p-5 rounded-2xl space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
@@ -809,7 +788,6 @@ export const TripsPage: React.FC = () => {
                   </button>
                 </div>
 
-                {/* Micro Search Input Bar inside Sidebar */}
                 <div className="relative">
                   <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
                   <input
@@ -874,7 +852,6 @@ export const TripsPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── Action Form Modal: Create & Edit Configuration ── */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
@@ -898,9 +875,7 @@ export const TripsPage: React.FC = () => {
                 <X size={18} />
               </button>
               <h2 className="text-xl font-bold text-white mb-4">
-                {editingTrip
-                  ? "Modify Blueprint Parameters"
-                  : "Map New Journey Blueprint"}
+                {editingTrip ? "Modify Blueprint Parameters" : "Map New Journey Blueprint"}
               </h2>
 
               <form onSubmit={handleFormSubmit} className="space-y-4 text-sm">
@@ -911,34 +886,24 @@ export const TripsPage: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={formState.title}
-                    onChange={(e) =>
-                      setFormState({ ...formState, title: e.target.value })
-                    }
+                    value={formState.title || ""}
+                    onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                     placeholder="e.g., Summer Alpine Framework"
                     className="w-full bg-[#080a10] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-cyan-500/50"
                   />
                 </div>
 
-                {/* ── Integrated Location Autocomplete Layout System ── */}
                 <div className="flex flex-col md:flex-row gap-4 w-full bg-[#080a10]/40 p-4 border border-white/[0.08] rounded-2xl">
-                  {/* Optional Country Field */}
                   <div ref={countryRef} className="relative flex-1 space-y-1.5">
                     <label className="text-xs font-semibold text-slate-400 block px-1">
-                      Country{" "}
-                      <span className="text-slate-500 font-normal">
-                        (Optional)
-                      </span>
+                      Country <span className="text-slate-500 font-normal">(Optional)</span>
                     </label>
                     <div className="relative">
-                      <Globe
-                        className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"
-                        size={16}
-                      />
+                      <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                       <input
                         type="text"
                         placeholder="Search country (e.g., France)..."
-                        value={formState.country}
+                        value={formState.country || ""}
                         onFocus={() => setShowCountryDropdown(true)}
                         onChange={(e) => {
                           setFormState({
@@ -946,14 +911,11 @@ export const TripsPage: React.FC = () => {
                             country: e.target.value,
                             destination: "",
                           });
-                          if (e.target.value === "") setSelectedCountryCode(""); // clear context
+                          if (e.target.value === "") setSelectedCountryCode("");
                         }}
                         className="w-full bg-[#0c0f17] border border-white/[0.08] rounded-xl pl-10 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 transition-colors"
                       />
-                      <ChevronDown
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
-                        size={16}
-                      />
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={16} />
                     </div>
 
                     {showCountryDropdown && filteredCountries.length > 0 && (
@@ -977,136 +939,93 @@ export const TripsPage: React.FC = () => {
                               <span>{c.flag}</span>
                               <span>{c.name}</span>
                             </div>
-                            {selectedCountryCode === c.isoCode && (
-                              <Check size={14} className="text-cyan-400" />
-                            )}
+                            {selectedCountryCode === c.isoCode && <Check size={14} className="text-cyan-400" />}
                           </button>
                         ))}
                       </div>
                     )}
                   </div>
 
-                  {/* Required Destination Field */}
                   <div ref={destRef} className="relative flex-1 space-y-1.5">
                     <label className="text-xs font-semibold text-slate-400 block px-1">
                       Destination <span className="text-rose-400">*</span>
                     </label>
                     <div className="relative">
-                      <MapPin
-                        className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"
-                        size={16}
-                      />
+                      <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                       <input
                         type="text"
                         required
-                        placeholder={
-                          selectedCountryCode
-                            ? "Famous spots or cities..."
-                            : "Enter city name..."
-                        }
-                        value={formState.destination}
+                        placeholder={selectedCountryCode ? "Famous spots or cities..." : "Enter city name..."}
+                        value={formState.destination || ""}
                         onFocus={() => setShowDestinationDropdown(true)}
-                        onChange={(e) =>
-                          setFormState({
-                            ...formState,
-                            destination: e.target.value,
-                          })
-                        }
+                        onChange={(e) => setFormState({ ...formState, destination: e.target.value })}
                         className="w-full bg-[#0c0f17] border border-white/[0.08] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 transition-colors"
                       />
                     </div>
 
-                    {showDestinationDropdown &&
-                      filteredDestinations.length > 0 && (
-                        <div className="absolute left-0 right-0 top-[105%] z-50 max-h-48 overflow-y-auto rounded-xl border border-white/[0.1] bg-[#0c0f17] p-1 shadow-2xl backdrop-blur-md">
-                          <div className="px-3 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                            {selectedCountryCode
-                              ? "Suggested Local Cities"
-                              : "Popular Global Destinations"}
-                          </div>
-                          {filteredDestinations.map((city, idx) => (
-                            <button
-                              key={`${city.name}-${idx}`}
-                              type="button"
-                              onClick={() => {
-                                setFormState({
-                                  ...formState,
-                                  destination: city.name,
-                                });
-                                setShowDestinationDropdown(false);
-                              }}
-                              className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.05] hover:text-cyan-400 rounded-lg transition-colors"
-                            >
-                              <MapPin size={14} className="text-slate-500" />
-                              <span>{city.name}</span>
-                            </button>
-                          ))}
+                    {showDestinationDropdown && filteredDestinations.length > 0 && (
+                      <div className="absolute left-0 right-0 top-[105%] z-50 max-h-48 overflow-y-auto rounded-xl border border-white/[0.1] bg-[#0c0f17] p-1 shadow-2xl backdrop-blur-md">
+                        <div className="px-3 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          {selectedCountryCode ? "Suggested Local Cities" : "Popular Global Destinations"}
                         </div>
-                      )}
+                        {filteredDestinations.map((city, idx) => (
+                          <button
+                            key={`${city.name}-${idx}`}
+                            type="button"
+                            onClick={() => {
+                              setFormState({ ...formState, destination: city.name });
+                              setShowDestinationDropdown(false);
+                            }}
+                            className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.05] hover:text-cyan-400 rounded-lg transition-colors"
+                          >
+                            <MapPin size={14} className="text-slate-500" />
+                            <span>{city.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-slate-400 font-medium block mb-1.5">
-                      Start Date
-                    </label>
+                    <label className="text-slate-400 font-medium block mb-1.5">Start Date</label>
                     <input
                       type="date"
                       required
-                      value={formState.startDate}
-                      onChange={(e) =>
-                        setFormState({
-                          ...formState,
-                          startDate: e.target.value,
-                        })
-                      }
+                      value={formState.startDate || ""}
+                      onChange={(e) => setFormState({ ...formState, startDate: e.target.value })}
                       className="w-full bg-[#080a10] border border-white/[0.08] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500/50 [color-scheme:dark]"
                     />
                   </div>
                   <div>
-                    <label className="text-slate-400 font-medium block mb-1.5">
-                      End Date
-                    </label>
+                    <label className="text-slate-400 font-medium block mb-1.5">End Date</label>
                     <input
                       type="date"
                       required
-                      value={formState.endDate}
-                      onChange={(e) =>
-                        setFormState({ ...formState, endDate: e.target.value })
-                      }
+                      value={formState.endDate || ""}
+                      onChange={(e) => setFormState({ ...formState, endDate: e.target.value })}
                       className="w-full bg-[#080a10] border border-white/[0.08] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500/50 [color-scheme:dark]"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="text-slate-400 font-medium block mb-1.5">
-                    Budget Allocation ($)
-                  </label>
+                  <label className="text-slate-400 font-medium block mb-1.5">Budget Allocation ($)</label>
                   <input
                     type="number"
                     required
                     value={formState.budget || ""}
-                    onChange={(e) =>
-                      setFormState({
-                        ...formState,
-                        budget: Number(e.target.value),
-                      })
-                    }
+                    onChange={(e) => setFormState({ ...formState, budget: Number(e.target.value) })}
                     placeholder="4000"
                     className="w-full bg-[#080a10] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-cyan-500/50"
                   />
                 </div>
                 <div>
-                  <label className="text-slate-400 font-medium block mb-1.5">
-                    Context Scope & Notes
-                  </label>
+                  <label className="text-slate-400 font-medium block mb-1.5">Context Scope & Notes</label>
                   <textarea
                     rows={3}
-                    value={formState.notes}
-                    onChange={(e) =>
-                      setFormState({ ...formState, notes: e.target.value })
-                    }
+                    value={formState.notes || ""}
+                    onChange={(e) => setFormState({ ...formState, notes: e.target.value })}
                     placeholder="Describe key priorities, modular routes, structural stops..."
                     className="w-full bg-[#080a10] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-cyan-500/50 resize-none"
                   />
@@ -1132,7 +1051,6 @@ export const TripsPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* ── Action Form Modal: Add Member Workspace Channel ── */}
       <AnimatePresence>
         {showAddMemberModal && (
           <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
@@ -1158,9 +1076,7 @@ export const TripsPage: React.FC = () => {
 
               <form onSubmit={handleAddMember} className="space-y-4 text-xs">
                 <div>
-                  <label className="block text-slate-400 font-medium mb-1.5">
-                    Display / Workspace Name
-                  </label>
+                  <label className="block text-slate-400 font-medium mb-1.5">Display / Workspace Name</label>
                   <input
                     type="text"
                     required
@@ -1183,7 +1099,6 @@ export const TripsPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* ── Action Modal: Remove Member Confirmation ── */}
       <AnimatePresence>
         {collabDeleteTarget && (
           <div className="fixed inset-0 z-[140] flex items-center justify-center p-4">
@@ -1203,9 +1118,7 @@ export const TripsPage: React.FC = () => {
               <div className="h-10 w-10 bg-rose-500/10 border border-rose-500/20 rounded-full flex items-center justify-center mx-auto text-rose-400 mb-3">
                 <Trash2 size={18} />
               </div>
-              <h3 className="text-sm font-bold text-white mb-1">
-                Revoke Workspace Token Access?
-              </h3>
+              <h3 className="text-sm font-bold text-white mb-1">Revoke Workspace Token Access?</h3>
               <p className="text-slate-400 text-xs mb-5">
                 Remove <strong>{collabDeleteTarget.memberName || collabDeleteTarget.name}</strong> from this travel blueprint node matrix?
               </p>
@@ -1228,7 +1141,6 @@ export const TripsPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* ── Action Action Modal: Delete Confirmation ── */}
       <AnimatePresence>
         {showDeleteConfirm && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
@@ -1248,12 +1160,8 @@ export const TripsPage: React.FC = () => {
               <div className="h-10 w-10 bg-rose-500/10 border border-rose-500/20 rounded-full flex items-center justify-center mx-auto text-rose-400 mb-3">
                 <Trash2 size={18} />
               </div>
-              <h3 className="text-base font-bold text-white mb-1">
-                Archive Trip Blueprint?
-              </h3>
-              <p className="text-slate-400 text-xs mb-5">
-                This action safely detaches data segments. This can't be undone.
-              </p>
+              <h3 className="text-base font-bold text-white mb-1">Archive Trip Blueprint?</h3>
+              <p className="text-slate-400 text-xs mb-5">This action safely detaches data segments. This can't be undone.</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowDeleteConfirm(null)}
