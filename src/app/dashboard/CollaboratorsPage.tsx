@@ -1,6 +1,7 @@
 "use client";
 
 import React, {
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -14,18 +15,13 @@ import {
   X,
   ChevronLeft,
 } from "lucide-react";
-import { TripItem } from "@/features/dashboard/types/dashboard.types";
+import { TripItem, TripMember } from "@/features/dashboard/types/dashboard.types";
+import { tripService } from "@/services/trip.service";
 
 
 
-interface Member {
-  id: string;      // The auto-generated ID from Prisma/Neon
-  userId: string;  // Linked User's ID
+interface Member extends TripMember {
   memberName: string;
-  email?: string;  // Added for invitation clarity
-  avatar?: string;
-  role: "OWNER" | "MEMBER";
-  joinedAt?: string;
 }
 
 interface Props {
@@ -33,8 +29,6 @@ interface Props {
   accessToken: string;
   triggerToast: (message: string) => void;
 }
-
-const API_URL = "http://localhost:4001/api/trips";
 
 const CollaboratorsPage: React.FC<Props> = ({
   trips,
@@ -48,34 +42,20 @@ const CollaboratorsPage: React.FC<Props> = ({
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Member | null>(null);
 
-  // Form structured to capture both structural fields needed by your handler block
   const [formData, setFormData] = useState({
     memberName: "",
-    email: "",
   });
 
-  const getHeaders = () => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${accessToken}`,
-  });
-
-  const fetchMembers = async (tripId: string) => {
+  const fetchMembers = useCallback(async (tripId: string) => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/${tripId}/members`, {
-        headers: getHeaders(),
-      });
-
-      if (!response.ok) throw new Error("Failed to fetch members");
-
-      const result = await response.json();
-      setMembers(result.data ?? result.members ?? result);
-    } catch (error) {
+      setMembers((await tripService.getMembers(accessToken, tripId)) as Member[]);
+    } catch {
       triggerToast("Failed to load members");
     } finally {
       setLoading(false);
     }
-  };
+  }, [accessToken, triggerToast]);
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,22 +63,11 @@ const CollaboratorsPage: React.FC<Props> = ({
     if (!selectedTrip) return;
 
     try {
-      const response = await fetch(`${API_URL}/${selectedTrip._id}/members`, {
-        method: "POST",
-        headers: getHeaders(),
-        body: JSON.stringify(formData),
-      });
-
-      if (!response.ok) {
-        console.log(response);
-        throw new Error("Failed to add member");
-      }
-
+      await tripService.addMember(accessToken, selectedTrip._id, formData.memberName);
       triggerToast("Member added successfully");
       setShowAddModal(false);
       setFormData({
         memberName: "",
-        email: "",
       });
 
       fetchMembers(selectedTrip._id);
@@ -111,17 +80,9 @@ const CollaboratorsPage: React.FC<Props> = ({
     if (!selectedTrip) return;
 
     try {
-      const response = await fetch(
-        `${API_URL}/${selectedTrip._id}/members/${member.id}`,
-        {
-          method: "DELETE",
-          headers: getHeaders(),
-        }
-      );
+      await tripService.removeMember(accessToken, selectedTrip._id, member.userId);
 
-      if (!response.ok) throw new Error("Failed to remove member");
-
-      setMembers((current) => current.filter((item) => item.id !== member.id));
+      setMembers((current) => current.filter((item) => item.userId !== member.userId));
       setDeleteTarget(null);
       triggerToast("Member removed");
     } catch {
@@ -138,9 +99,11 @@ const CollaboratorsPage: React.FC<Props> = ({
 
   useEffect(() => {
     if (selectedTrip) {
-      fetchMembers(selectedTrip._id);
+      queueMicrotask(() => {
+        void fetchMembers(selectedTrip._id);
+      });
     }
-  }, [selectedTrip]);
+  }, [selectedTrip, fetchMembers]);
 
   return (
     <div className="space-y-6">
@@ -292,30 +255,11 @@ const CollaboratorsPage: React.FC<Props> = ({
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">
-                  Email Address
-                </label>
-                <input
-                  required
-                  type="email"
-                  placeholder="johndoe@example.com"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      email: e.target.value,
-                    }))
-                  }
-                  className="w-full p-3 rounded-xl bg-[#080a10] border border-white/10 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500/50"
-                />
-              </div>
-
               <button
                 type="submit"
                 className="w-full py-3 rounded-xl bg-cyan-500 text-black font-semibold hover:bg-cyan-400 transition-colors border-none cursor-pointer"
               >
-                Send Invite / Add Member
+                Add Member
               </button>
             </form>
           </div>

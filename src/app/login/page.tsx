@@ -5,6 +5,18 @@ import { useRouter } from "next/navigation";
 import { Map, Mail, Lock, Loader2, AlertCircle, ArrowRight } from "lucide-react";
 import { useAuthStore } from "@/lib/authStore";
 import { AuroraBackground } from "@/components/ui/aurora-background";
+import { ApiResponse } from "@/types/api.types";
+
+interface LoginPayload {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+  accessToken: string;
+  refreshToken: string;
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -39,17 +51,13 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
-      const result = await response.json();
+      const result = (await response.json()) as ApiResponse<LoginPayload>;
 
       if (!response.ok) {
         throw new Error(result.message || "Invalid credentials configuration profile.");
       }
 
-      /* Extracting payload tokens cleanly from backend responses.
-        Adjust the mapping fields if your express router matches a flat structural format:
-        e.g., setAuth(result.user, result.accessToken, result.refreshToken);
-      */
-      const { user, accessToken, refreshToken } = result.data || result;
+      const { user, accessToken, refreshToken } = result.data;
 
       if (!accessToken) {
         throw new Error("Ecosystem Auth Handshake failed: Empty token payload returned.");

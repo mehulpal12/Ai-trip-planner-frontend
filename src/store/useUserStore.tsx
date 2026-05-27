@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { useAuthStore } from "@/lib/authStore";
+import { ApiResponse } from "@/types/api.types";
 
 export interface UserProfile {
   id: string;
@@ -80,10 +81,9 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
         throw new Error(`Failed to fetch profile. Server responded with status: ${response.status}`);
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as ApiResponse<FullUserData>;
       
-      // Unwrap standard API wrapping envelopes ({ success: true, data: {...} }) safely
-      const payload: FullUserData = result.data || result;
+      const payload = result.data;
       console.log("✨ Zustand Fetch Success! Incoming Data Payload:", payload);
 
       set({ 

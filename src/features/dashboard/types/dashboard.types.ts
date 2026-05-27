@@ -15,6 +15,18 @@ export interface TripItem {
   createdAt?: string;
 }
 
+export interface TripMember {
+  id: string;
+  _id?: string;
+  tripId: string;
+  userId: string;
+  memberName?: string;
+  name?: string;
+  avatar?: string;
+  role: "OWNER" | "MEMBER";
+  joinedAt?: string;
+}
+
 export interface ActivityLog {
   id: string;
   icon: ReactNode;

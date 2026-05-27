@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
@@ -25,21 +25,11 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/lib/authStore";
 import { Country, City } from "country-state-city";
+import { TripItem, TripMember } from "@/features/dashboard/types/dashboard.types";
+import { tripService } from "@/services/trip.service";
 
-interface TripItem {
-  _id: string; 
-  title: string;
-  country?: string; 
-  destination: string;
-  startDate: string;
-  endDate: string;
-  budget: number;
-  notes: string;
-  owner: string | { _id: string; name: string; email: string; avatar?: string };
-  members: Array<{ _id: string; name: string; memberName?: string; avatar?: string }>;
-  activities: Array<{ id: string; text: string; time: string }>;
-  createdAt?: string;
-}
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
 
 export const TripsPage: React.FC = () => {
   const token = useAuthStore((state) => state.accessToken);
@@ -78,11 +68,11 @@ export const TripsPage: React.FC = () => {
     notes: "",
   });
 
-  const [members, setMembers] = useState<any[]>([]);
+  const [members, setMembers] = useState<TripMember[]>([]);
   const [collabLoading, setCollabLoading] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
-  const [collabDeleteTarget, setCollabDeleteTarget] = useState<any | null>(null);
+  const [collabDeleteTarget, setCollabDeleteTarget] = useState<TripMember | null>(null);
   const [newMemberName, setNewMemberName] = useState("");
 
   const allCountries = useMemo(() => Country.getAllCountries(), []);
@@ -140,76 +130,57 @@ export const TripsPage: React.FC = () => {
     return dateStr.split("T")[0];
   };
 
-  const BASE_URL = "http://localhost:4001";
-
-  const getHeaders = () => ({
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  });
-
   // Pipeline 1: GET /api/trips (CRUD - Read)
-  const fetchTrips = async () => {
+  const fetchTrips = useCallback(async () => {
+    if (!token) return;
+
     setIsLoading(true);
     setApiError(null);
     try {
-      const res = await fetch(`${BASE_URL}/api/trips`, {
-        method: "GET",
-        headers: getHeaders(),
-      });
-      if (!res.ok) throw new Error(`HTTP Error Status: ${res.status}`);
-      const response = await res.json();
-      
-      const rawTripsData = Array.isArray(response)
-        ? response
-        : response?.data || response?.trips || [];
-        
-      // SENIOR FIX: Map and normalize backend id properties safely to guarantee key consistency
-      const tripsData = rawTripsData.map((trip: any) => ({
-        ...trip,
-        _id: trip._id || trip.id || String(Math.random()),
-      }));
-
-      setTrips(tripsData);
-    } catch (err: any) {
-      setApiError(err.message || "Failed to download trip modules.");
+      setTrips(await tripService.getTrips(token));
+    } catch (err: unknown) {
+      setApiError(getErrorMessage(err, "Failed to download trip modules."));
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     if (!token) {
-      setIsLoading(false);
+      queueMicrotask(() => setIsLoading(false));
       return;
     }
-    fetchTrips();
-  }, [token]);
+    queueMicrotask(() => {
+      void fetchTrips();
+    });
+  }, [token, fetchTrips]);
 
-  const fetchTripMembers = async (tripId: string) => {
+  const fetchTripMembers = useCallback(async (tripId: string) => {
+    if (!token) return;
+
     try {
       setCollabLoading(true);
-      const response = await fetch(`${BASE_URL}/api/trips/${tripId}/members`, {
-        headers: getHeaders(),
-      });
-      if (!response.ok) throw new Error("Failed to fetch members");
-      const result = await response.json();
-      setMembers(result.data ?? result.members ?? result);
-    } catch (error) {
+      setMembers(await tripService.getMembers(token, tripId));
+    } catch {
       triggerToast("Failed to load members");
     } finally {
       setCollabLoading(false);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     if (selectedTrip) {
-      fetchTripMembers(selectedTrip._id);
+      queueMicrotask(() => {
+        void fetchTripMembers(selectedTrip._id);
+      });
     }
-  }, [selectedTrip]);
+  }, [selectedTrip, fetchTripMembers]);
 
   // Pipeline 2: POST & PUT Orchestrator (CRUD - Create & Update)
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!token) return;
+
     try {
       const payload = {
         ...formState,
@@ -223,49 +194,33 @@ export const TripsPage: React.FC = () => {
         );
         setTrips(updatedTrips);
 
-        const res = await fetch(`${BASE_URL}/api/trips/${editingTrip._id}`, {
-          method: "PUT",
-          headers: getHeaders(),
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) {
+        try {
+          const finalTrip = await tripService.updateTrip(token, editingTrip._id, payload);
+          
+          if (selectedTrip?._id === editingTrip._id) {
+            setSelectedTrip(finalTrip);
+          }
+        } catch (error: unknown) {
           setTrips(fallbackTrips);
-          throw new Error("Failed modifications on targeted backend node.");
-        }
-
-        const data = await res.json();
-        const serverTrip = data.trip || data;
-        const finalTrip = { ...serverTrip, _id: serverTrip._id || serverTrip.id || editingTrip._id };
-        
-        if (selectedTrip?._id === editingTrip._id) {
-          setSelectedTrip(finalTrip);
+          throw error;
         }
         triggerToast(`Successfully modified framework for "${formState.title}"`);
       } else {
-        const res = await fetch(`${BASE_URL}/api/trips`, {
-          method: "POST",
-          headers: getHeaders(),
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) throw new Error("Initialization request failed at gateway.");
-        const data = await res.json();
-        const serverTrip = data.trip || data;
-        const finalTrip = { ...serverTrip, _id: serverTrip._id || serverTrip.id || String(Math.random()) };
-
+        const finalTrip = await tripService.createTrip(token, payload);
         setTrips([finalTrip, ...trips]);
         triggerToast(`"${formState.title}" successfully organized and serialized!`);
       }
       setIsModalOpen(false);
       fetchTrips();
-    } catch (err: any) {
-      triggerToast(`Pipeline error: ${err.message}`);
+    } catch (err: unknown) {
+      triggerToast(`Pipeline error: ${getErrorMessage(err, "Unknown error")}`);
     }
   };
 
   // Pipeline 3: DELETE /api/trips/:id (CRUD - Delete)
   const handleDeleteTrip = async (id: string, e?: React.MouseEvent) => {
+    if (!token) return;
+
     if (e) e.stopPropagation();
     const target = trips.find((t) => t._id === id);
     const fallbackTrips = [...trips];
@@ -275,33 +230,24 @@ export const TripsPage: React.FC = () => {
     setShowDeleteConfirm(null);
 
     try {
-      const res = await fetch(`${BASE_URL}/api/trips/${id}`, {
-        method: "DELETE",
-        headers: getHeaders(),
-      });
-      if (!res.ok) {
+      try {
+        await tripService.deleteTrip(token, id);
+      } catch (error: unknown) {
         setTrips(fallbackTrips);
-        throw new Error("Server rejected deletion constraint parameters.");
+        throw error;
       }
       triggerToast(`Archived and completely removed configuration "${target?.title}"`);
-    } catch (err: any) {
-      triggerToast(`Error: ${err.message}`);
+    } catch (err: unknown) {
+      triggerToast(`Error: ${getErrorMessage(err, "Unknown error")}`);
     }
   };
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedTrip) return;
+    if (!selectedTrip || !token) return;
 
     try {
-      const response = await fetch(`${BASE_URL}/api/trips/${selectedTrip._id}/members`, {
-        method: "POST",
-        headers: getHeaders(),
-        body: JSON.stringify({ memberName: newMemberName }),
-      });
-
-      if (!response.ok) throw new Error("Failed to add member");
-
+      await tripService.addMember(token, selectedTrip._id, newMemberName);
       triggerToast("Member added successfully");
       setShowAddMemberModal(false);
       setNewMemberName("");
@@ -311,21 +257,13 @@ export const TripsPage: React.FC = () => {
     }
   };
 
-  const handleRemoveMember = async (member: any) => {
-    if (!selectedTrip) return;
+  const handleRemoveMember = async (member: TripMember) => {
+    if (!selectedTrip || !token) return;
 
     try {
-      const response = await fetch(
-        `${BASE_URL}/api/trips/${selectedTrip._id}/members/${member.id || member._id}`,
-        {
-          method: "DELETE",
-          headers: getHeaders(),
-        }
-      );
+      await tripService.removeMember(token, selectedTrip._id, member.userId);
 
-      if (!response.ok) throw new Error("Failed to remove member");
-
-      setMembers((current) => current.filter((item) => (item.id || item._id) !== (member.id || member._id)));
+      setMembers((current) => current.filter((item) => item.userId !== member.userId));
       setCollabDeleteTarget(null);
       triggerToast("Member removed");
     } catch {
@@ -370,7 +308,7 @@ export const TripsPage: React.FC = () => {
   };
 
   const processedTrips = useMemo(() => {
-    let filtered = trips.filter(
+    const filtered = trips.filter(
       (t) =>
         t.title?.toLowerCase().includes(search.toLowerCase()) ||
         t.destination?.toLowerCase().includes(search.toLowerCase()) ||
@@ -456,7 +394,7 @@ export const TripsPage: React.FC = () => {
                 <span>Sort:</span>
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
+                  onChange={(e) => setSortBy(e.target.value as "title" | "budget" | "date")}
                   className="bg-transparent text-white border-none outline-none focus:ring-0 cursor-pointer font-medium"
                 >
                   <option value="date" className="bg-[#0c0f17]">
@@ -1161,7 +1099,7 @@ export const TripsPage: React.FC = () => {
                 <Trash2 size={18} />
               </div>
               <h3 className="text-base font-bold text-white mb-1">Archive Trip Blueprint?</h3>
-              <p className="text-slate-400 text-xs mb-5">This action safely detaches data segments. This can't be undone.</p>
+              <p className="text-slate-400 text-xs mb-5">This action safely detaches data segments. This cannot be undone.</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowDeleteConfirm(null)}

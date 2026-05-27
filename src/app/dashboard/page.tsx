@@ -24,6 +24,7 @@ import { SideNavItem } from "@/components/ui/side-nav-item";
 import { TripItem } from "@/features/dashboard/types/dashboard.types";
 import { OverviewView } from "@/features/dashboard/views/overview-view";
 import { WorkspaceView } from "@/features/dashboard/views/workspace-view";
+import { tripService } from "@/services/trip.service";
 
 import { TripsPage } from "./trips-page";
 import CollaboratorsPage from "./CollaboratorsPage";
@@ -39,19 +40,11 @@ export default function MainDashboard() {
   const [activeTab, setActiveTab] = useState<string>("Dashboard");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
-  const BASE_URL = "http://localhost:4001";
-
   const fetchTrips = useCallback(async () => {
     if (!token) return;
     setIsTripsLoading(true);
     try {
-      const res = await fetch(`${BASE_URL}/api/trips`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("API Channel Fault");
-      const data = await res.json();
-      setTrips(Array.isArray(data) ? data.map((trip: any) => ({ ...trip, _id: trip.id ?? trip._id })) : data.data?.map((trip: any) => ({ ...trip, _id: trip.id ?? trip._id })) || []);
+      setTrips(await tripService.getTrips(token));
     } catch (err) {
       console.error("Dashboard connection error pipeline:", err);
     } finally {
@@ -64,7 +57,9 @@ export default function MainDashboard() {
       router.push('/login');
     } else {
       fetchUser();
-      fetchTrips();
+      queueMicrotask(() => {
+        void fetchTrips();
+      });
     }
   }, [token, router, fetchUser, fetchTrips]);
 
