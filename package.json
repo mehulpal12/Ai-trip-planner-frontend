@@ -13,6 +13,7 @@
     "@emotion/styled": "^11.14.1",
     "@gsap/react": "^2.1.2",
     "@mui/material": "^9.0.1",
+    "axios": "^1.16.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cobe": "^0.6.5",

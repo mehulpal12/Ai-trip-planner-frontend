@@ -44,7 +44,7 @@ export default function MainDashboard() {
     if (!token) return;
     setIsTripsLoading(true);
     try {
-      setTrips(await tripService.getTrips(token));
+      setTrips(await tripService.getTrips());
     } catch (err) {
       console.error("Dashboard connection error pipeline:", err);
     } finally {

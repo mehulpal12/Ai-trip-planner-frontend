@@ -137,7 +137,7 @@ export const TripsPage: React.FC = () => {
     setIsLoading(true);
     setApiError(null);
     try {
-      setTrips(await tripService.getTrips(token));
+      setTrips(await tripService.getTrips());
     } catch (err: unknown) {
       setApiError(getErrorMessage(err, "Failed to download trip modules."));
     } finally {
@@ -160,7 +160,7 @@ export const TripsPage: React.FC = () => {
 
     try {
       setCollabLoading(true);
-      setMembers(await tripService.getMembers(token, tripId));
+      setMembers(await tripService.getMembers(tripId));
     } catch {
       triggerToast("Failed to load members");
     } finally {
@@ -195,7 +195,7 @@ export const TripsPage: React.FC = () => {
         setTrips(updatedTrips);
 
         try {
-          const finalTrip = await tripService.updateTrip(token, editingTrip._id, payload);
+          const finalTrip = await tripService.updateTrip(editingTrip._id, payload);
           
           if (selectedTrip?._id === editingTrip._id) {
             setSelectedTrip(finalTrip);
@@ -206,7 +206,7 @@ export const TripsPage: React.FC = () => {
         }
         triggerToast(`Successfully modified framework for "${formState.title}"`);
       } else {
-        const finalTrip = await tripService.createTrip(token, payload);
+        const finalTrip = await tripService.createTrip(payload);
         setTrips([finalTrip, ...trips]);
         triggerToast(`"${formState.title}" successfully organized and serialized!`);
       }
@@ -231,7 +231,7 @@ export const TripsPage: React.FC = () => {
 
     try {
       try {
-        await tripService.deleteTrip(token, id);
+        await tripService.deleteTrip(id);
       } catch (error: unknown) {
         setTrips(fallbackTrips);
         throw error;
@@ -247,7 +247,7 @@ export const TripsPage: React.FC = () => {
     if (!selectedTrip || !token) return;
 
     try {
-      await tripService.addMember(token, selectedTrip._id, newMemberName);
+      await tripService.addMember(selectedTrip._id, newMemberName);
       triggerToast("Member added successfully");
       setShowAddMemberModal(false);
       setNewMemberName("");
@@ -261,7 +261,7 @@ export const TripsPage: React.FC = () => {
     if (!selectedTrip || !token) return;
 
     try {
-      await tripService.removeMember(token, selectedTrip._id, member.userId);
+      await tripService.removeMember(selectedTrip._id, member.userId);
 
       setMembers((current) => current.filter((item) => item.userId !== member.userId));
       setCollabDeleteTarget(null);

@@ -49,7 +49,7 @@ const CollaboratorsPage: React.FC<Props> = ({
   const fetchMembers = useCallback(async (tripId: string) => {
     try {
       setLoading(true);
-      setMembers((await tripService.getMembers(accessToken, tripId)) as Member[]);
+      setMembers((await tripService.getMembers(tripId)) as Member[]);
     } catch {
       triggerToast("Failed to load members");
     } finally {
@@ -63,7 +63,7 @@ const CollaboratorsPage: React.FC<Props> = ({
     if (!selectedTrip) return;
 
     try {
-      await tripService.addMember(accessToken, selectedTrip._id, formData.memberName);
+      await tripService.addMember(selectedTrip._id, formData.memberName);
       triggerToast("Member added successfully");
       setShowAddModal(false);
       setFormData({
@@ -80,7 +80,7 @@ const CollaboratorsPage: React.FC<Props> = ({
     if (!selectedTrip) return;
 
     try {
-      await tripService.removeMember(accessToken, selectedTrip._id, member.userId);
+      await tripService.removeMember(selectedTrip._id, member.userId);
 
       setMembers((current) => current.filter((item) => item.userId !== member.userId));
       setDeleteTarget(null);

@@ -40,7 +40,7 @@ export const useAuthStore = create<AuthState>()(
         }),
     }),
     {
-      name: "auth-storage", // local storage key
+      name: process.env.NEXT_PUBLIC_AUTH_STORAGE_KEY || "trip_planner_auth", // local storage key
     }
   )
 );

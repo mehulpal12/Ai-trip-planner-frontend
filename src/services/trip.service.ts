@@ -1,7 +1,7 @@
 import { TripItem, TripMember } from "@/features/dashboard/types/dashboard.types";
+import { API_ROUTES } from "@/config/api";
+import { api } from "@/lib/api";
 import { ApiResponse } from "@/types/api.types";
-
-const BASE_URL = "http://localhost:4001/api/trips";
 
 type TripPayload = {
   title: string;
@@ -23,21 +23,7 @@ type RawTrip = Omit<Partial<TripItem>, "_id"> & {
   }>;
 };
 
-const authHeaders = (token: string) => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${token}`,
-});
-
-const unwrap = async <T>(response: Response): Promise<T> => {
-  const body = (await response.json()) as ApiResponse<T>;
-
-  if (!response.ok || body.success === false) {
-    throw new Error(body.message || `Request failed with status ${response.status}`);
-  }
-
-  return body.data;
-};
-
+// Data normalization mapping rules logic intact
 const normalizeTrip = (trip: RawTrip): TripItem => ({
   ...trip,
   _id: trip._id || trip.id || "",
@@ -50,69 +36,36 @@ const normalizeTrip = (trip: RawTrip): TripItem => ({
 } as TripItem);
 
 export const tripService = {
-  async getTrips(token: string): Promise<TripItem[]> {
-    const response = await fetch(BASE_URL, {
-      method: "GET",
-      headers: authHeaders(token),
-    });
-
-    const trips = await unwrap<RawTrip[]>(response);
-    return trips.map(normalizeTrip);
+  async getTrips(): Promise<TripItem[]> {
+    const response = await api.get<ApiResponse<RawTrip[]>>(API_ROUTES.TRIPS);
+    return response.data.data.map(normalizeTrip);
   },
 
-  async createTrip(token: string, payload: TripPayload): Promise<TripItem> {
-    const response = await fetch(BASE_URL, {
-      method: "POST",
-      headers: authHeaders(token),
-      body: JSON.stringify(payload),
-    });
-
-    return normalizeTrip(await unwrap<RawTrip>(response));
+  async createTrip(payload: TripPayload): Promise<TripItem> {
+    const response = await api.post<ApiResponse<RawTrip>>(API_ROUTES.TRIPS, payload);
+    return normalizeTrip(response.data.data);
   },
 
-  async updateTrip(token: string, tripId: string, payload: TripPayload): Promise<TripItem> {
-    const response = await fetch(`${BASE_URL}/${tripId}`, {
-      method: "PUT",
-      headers: authHeaders(token),
-      body: JSON.stringify(payload),
-    });
-
-    return normalizeTrip(await unwrap<RawTrip>(response));
+  async updateTrip(tripId: string, payload: TripPayload): Promise<TripItem> {
+    const response = await api.put<ApiResponse<RawTrip>>(`${API_ROUTES.TRIPS}/${tripId}`, payload);
+    return normalizeTrip(response.data.data);
   },
 
-  async deleteTrip(token: string, tripId: string): Promise<void> {
-    const response = await fetch(`${BASE_URL}/${tripId}`, {
-      method: "DELETE",
-      headers: authHeaders(token),
-    });
-
-    await unwrap<never>(response);
+  async deleteTrip(tripId: string): Promise<void> {
+    await api.delete<ApiResponse<any>>(`${API_ROUTES.TRIPS}/${tripId}`);
   },
 
-  async getMembers(token: string, tripId: string): Promise<TripMember[]> {
-    const response = await fetch(`${BASE_URL}/${tripId}/members`, {
-      headers: authHeaders(token),
-    });
-
-    return unwrap<TripMember[]>(response);
+  async getMembers(tripId: string): Promise<TripMember[]> {
+    const response = await api.get<ApiResponse<TripMember[]>>(`${API_ROUTES.TRIPS}/${tripId}/members`);
+    return response.data.data;
   },
 
-  async addMember(token: string, tripId: string, memberName: string): Promise<TripMember> {
-    const response = await fetch(`${BASE_URL}/${tripId}/members`, {
-      method: "POST",
-      headers: authHeaders(token),
-      body: JSON.stringify({ memberName }),
-    });
-
-    return unwrap<TripMember>(response);
+  async addMember(tripId: string, memberName: string): Promise<TripMember> {
+    const response = await api.post<ApiResponse<TripMember>>(`${API_ROUTES.TRIPS}/${tripId}/members`, { memberName });
+    return response.data.data;
   },
 
-  async removeMember(token: string, tripId: string, userId: string): Promise<void> {
-    const response = await fetch(`${BASE_URL}/${tripId}/members/${userId}`, {
-      method: "DELETE",
-      headers: authHeaders(token),
-    });
-
-    await unwrap<never>(response);
+  async removeMember(tripId: string, userId: string): Promise<void> {
+    await api.delete<ApiResponse<any>>(`${API_ROUTES.TRIPS}/${tripId}/members/${userId}`);
   },
 };
