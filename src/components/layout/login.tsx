@@ -15,6 +15,19 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuthStore } from "@/lib/authStore";
+import { API_ROUTES } from "@/config/api";
+import { ApiResponse } from "@/types/api.types";
+
+interface LoginPayload {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+  accessToken: string;
+  refreshToken: string;
+}
 
 export default function LoginPage() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -86,7 +99,7 @@ export default function LoginPage() {
 
     try {
       if (isRegister) {
-        const res = await fetch("http://localhost:4000/api/users/register", {
+        const res = await fetch(`${API_ROUTES.USERS}/register`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -103,7 +116,7 @@ export default function LoginPage() {
         setIsRegister(false);
         setPassword("");
       } else {
-        const res = await fetch("http://localhost:4000/api/users/login", {
+        const res = await fetch(`${API_ROUTES.USERS}/login`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -111,13 +124,14 @@ export default function LoginPage() {
           body: JSON.stringify({ email, password }),
         });
 
-        const data = await res.json();
+        const data = (await res.json()) as ApiResponse<LoginPayload>;
         if (!res.ok) {
           throw new Error(data.message || "Login failed");
         }
 
         toast.success("Logged in successfully!");
-        useAuthStore.getState().setAuth(data.user, data.accessToken, data.refreshToken);
+        const { user, accessToken, refreshToken } = data.data;
+        useAuthStore.getState().setAuth(user, accessToken, refreshToken);
         router.push("/dashboard");
       }
     } catch (err: any) {

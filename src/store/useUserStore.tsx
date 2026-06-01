@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { useAuthStore } from "@/lib/authStore";
+import { API_ROUTES } from "@/config/api";
 import { ApiResponse } from "@/types/api.types";
 
 export interface UserProfile {
@@ -68,8 +69,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
 
       console.log("🔵 Zustand: Fetching profile from Express backend...");
       
-      // NOTE: Ensure port 4000 matches your Auth/User Microservice Port configuration!
-      const response = await fetch("http://localhost:4000/api/users/profile", {
+      const response = await fetch(`${API_ROUTES.USERS}/profile`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -123,7 +123,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
 
       set({ data: optimizedState, user: optimizedState });
 
-      const response = await fetch("http://localhost:4000/api/users/profile", {
+      const response = await fetch(`${API_ROUTES.USERS}/profile`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

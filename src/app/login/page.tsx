@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Map, Mail, Lock, Loader2, AlertCircle, ArrowRight } from "lucide-react";
 import { useAuthStore } from "@/lib/authStore";
 import { AuroraBackground } from "@/components/ui/aurora-background";
+import { API_ROUTES } from "@/config/api";
 import { ApiResponse } from "@/types/api.types";
 
 interface LoginPayload {
@@ -44,8 +45,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // NOTE: Ensure port 4000 points cleanly to your User Auth Microservice cluster node
-      const response = await fetch("http://localhost:4000/api/users/login", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_USERS_API}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
