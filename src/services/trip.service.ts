@@ -38,6 +38,7 @@ const normalizeTrip = (trip: RawTrip): TripItem => ({
 export const tripService = {
   async getTrips(): Promise<TripItem[]> {
     const response = await api.get<ApiResponse<RawTrip[]>>(API_ROUTES.TRIPS);
+    console.log(response.data);
     return response.data.data.map(normalizeTrip);
   },
 

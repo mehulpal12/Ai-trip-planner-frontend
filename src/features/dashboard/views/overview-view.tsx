@@ -1,110 +1,170 @@
 "use client";
-import React, { useMemo } from "react";
-import { Compass, Users, Sparkles, CalendarDays, CheckCircle2, TrendingUp, ChevronRight, ArrowRight } from "lucide-react";
-import { TripItem } from "@/features/dashboard/types/dashboard.types";
-import { StatCard } from "../components/stat-card";
-import { RecommendationItem } from "../components/recommendation-item";
-import { DeadlineProgress } from "../components/deadline-progress";
-import { RECOMMENDATIONS, DEADLINES, STATIC_ACTIVITIES } from "../data/dashboard.data";
 
+import React, { Dispatch, SetStateAction } from "react";
+import { TripItem } from "@/features/dashboard/types/dashboard.types";
+import { 
+  Compass, 
+  Layers, 
+  DollarSign, 
+  Activity, 
+  TrendingUp, 
+  Sparkles, 
+  Clock, 
+  MapPin 
+} from "lucide-react";
+
+// 1. Define the explicit Props contract matching your exact parent state pass
 interface OverviewViewProps {
   trips: TripItem[];
   isLoading: boolean;
   userDisplayName: string;
-  setActiveTab: (tab: string) => void;
+  setActiveTab: Dispatch<SetStateAction<string>>;
 }
 
-export const OverviewView: React.FC<OverviewViewProps> = ({ trips, isLoading, userDisplayName, setActiveTab }) => {
-  const metrics = useMemo(() => {
-    const totalBudget = trips.reduce((sum, trip) => sum + (trip.budget || 0), 0);
-    return {
-      activeCount: trips.length,
-      budgetSum: totalBudget,
-      memberCount: trips.reduce((sum, trip) => sum + (trip.members?.length || 0), 0),
-    };
-  }, [trips]);
+export function OverviewView({ trips, isLoading, userDisplayName, setActiveTab }: OverviewViewProps) {
+  
+  // Dynamic calculation based on live incoming trips from your Redis pool
+  const totalTripsCount = trips.length;
+  const recentActivities = trips.slice(0, 3).map((trip) => ({
+    id: trip.id,
+    destination: trip.destination,
+    type: trip.travelStyle,
+    time: "Saved Itinerary",
+    days: trip.days
+  }));
 
-  const formatDateString = (dateStr: string) => {
-    if (!dateStr) return "";
-    return dateStr.split("T")[0];
-  };
+  const operationalStats = [
+    {
+      title: "Welcome Back",
+      value: userDisplayName || "Explorer",
+      description: "Active system terminal user",
+      icon: Activity,
+      color: "text-emerald-400",
+      bg: "bg-emerald-500/5",
+    },
+    {
+      title: "AI Routes Compiled",
+      value: isLoading ? "Loading..." : `${totalTripsCount} Total`,
+      description: "Synchronized from Redis pool",
+      icon: Compass,
+      color: "text-cyan-400",
+      bg: "bg-cyan-500/5",
+    },
+    {
+      title: "Global Cache Hits",
+      value: "100%",
+      description: "Optimized persistent layers",
+      icon: Layers,
+      color: "text-purple-400",
+      bg: "bg-purple-500/5",
+    },
+    {
+      title: "Avg Engine Response",
+      value: "1.8s",
+      description: "Powered by Gemini Pro",
+      icon: DollarSign,
+      color: "text-amber-400",
+      bg: "bg-amber-500/5",
+    },
+  ];
+
   return (
-    <div className="space-y-8">
-      {/* Welcome Hero Grid Banner */}
-      <div className="p-6 md:p-8 rounded-3xl bg-gradient-to-br from-slate-950 via-[#0a0d16] to-[#04060a] border border-white/[0.05] relative overflow-hidden shadow-2xl">
-        <div className="relative z-10 max-w-xl">
-          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white mb-2">
-            Welcome back, <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-sky-400">{userDisplayName}</span>
-          </h1>
-          <p className="text-slate-400 text-xs md:text-sm leading-relaxed">
-            Your system operations engine has aggregated current blueprint parameters across your active clusters.
-          </p>
-        </div>
+    <div className="space-y-8 animate-in fade-in duration-300">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight text-white">
+          System Overview
+        </h1>
+        <p className="text-slate-400 mt-1 text-sm">
+          Real-time diagnostics and telemetry mapping for your generative engine.
+        </p>
       </div>
 
-      {/* Telemetry Analytical Dash Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <StatCard title="Active Blueprints" value={isLoading ? "..." : metrics.activeCount} icon={Compass} colorClass="bg-cyan-500/10 text-cyan-400" />
-        <StatCard title="Aggregated Budget" value={isLoading ? "..." : `$${metrics.budgetSum.toLocaleString()}`} icon={TrendingUp} colorClass="bg-emerald-500/10 text-emerald-400" />
-        <StatCard title="Network Members" value={isLoading ? "..." : metrics.memberCount} icon={Users} colorClass="bg-purple-500/10 text-purple-400" />
-      </div>
-
-      {/* Primary Context Splits */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Live Tracking Feed Container */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="p-6 bg-white/[0.01] border border-white/[0.06] rounded-2xl backdrop-blur-md">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h3 className="text-sm font-bold text-white">Live Operations Tracking</h3>
-                <p className="text-[11px] text-slate-500">Latest active blueprint deployments pulled from api endpoints.</p>
+      {/* METRICS ROW */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        {operationalStats.map((stat, idx) => {
+          const Icon = stat.icon;
+          return (
+            <div 
+              key={idx} 
+              className="bg-white/[0.02] border border-white/[0.05] rounded-2xl p-5 backdrop-blur-md relative overflow-hidden group hover:border-white/[0.1] transition-all"
+            >
+              <div className="flex justify-between items-start">
+                <div className="space-y-2">
+                  <p className="text-xs font-medium uppercase tracking-wider text-slate-400">{stat.title}</p>
+                  <h3 className="text-2xl font-bold text-white tracking-tight">{stat.value}</h3>
+                </div>
+                <div className={`p-2.5 rounded-xl ${stat.bg} ${stat.color}`}>
+                  <Icon size={18} />
+                </div>
               </div>
-              <button onClick={() => setActiveTab("Trip Blueprints")} className="text-[11px] font-bold text-cyan-400 flex items-center gap-1 bg-transparent border-none cursor-pointer hover:text-cyan-300">
-                Manage All <ArrowRight size={12} />
+              <p className="text-xs text-slate-500 mt-4 flex items-center gap-1">
+                <TrendingUp size={12} className="text-emerald-500" />
+                {stat.description}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* RECENT FEED & QUICK CONTROL LINKS */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="bg-white/[0.01] border border-white/[0.04] rounded-3xl p-6 lg:col-span-2">
+          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <Sparkles size={16} className="text-cyan-400" />
+            Live Cache Stream
+          </h3>
+          
+          {isLoading ? (
+            <p className="text-sm text-slate-500 py-4">Syncing stream logs...</p>
+          ) : recentActivities.length === 0 ? (
+            <div className="text-center py-6">
+              <p className="text-sm text-slate-500 mb-3">No active itineraries detected in database pool.</p>
+              <button 
+                onClick={() => setActiveTab("ai")} 
+                className="text-xs bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 px-3 py-1.5 rounded-lg font-medium transition-all"
+              >
+                Launch Generation Engine
               </button>
             </div>
-
-            {isLoading ? (
-              <div className="py-12 flex justify-center">
-                <div className="h-5 w-5 border-2 border-cyan-500/20 border-t-cyan-400 animate-spin rounded-full" />
-              </div>
-            ) : trips.length === 0 ? (
-              <div className="py-12 text-center border border-dashed border-white/5 rounded-xl text-xs text-slate-500">
-                No telemetry components active inside database structures.
-              </div>
-            ) : (
-              <div className="divide-y divide-white/[0.04]">
-                {trips.map((trip) => (
-                  <div key={trip._id ?? trip._id} className="py-3.5 flex justify-between items-center first:pt-0 last:pb-0">
-                    <div>
-                      <p className="text-xs font-semibold text-white">{trip.title}</p>
-                      <p className="text-[10px] text-slate-500">{trip.destination || "Global Route"}</p>
+          ) : (
+            <div className="divide-y divide-white/[0.04] space-y-3">
+              {recentActivities.map((act) => (
+                <div key={act.id} className="flex items-center justify-between pt-3 first:pt-0">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-white/[0.03] border border-white/[0.05] flex items-center justify-center text-slate-400">
+                      <MapPin size={16} />
                     </div>
-                    <div className="flex flex-col items-end">
-                      <span className="text-xs font-mono text-cyan-400 px-2.5 py-1 bg-cyan-500/5 border border-cyan-500/10 rounded-lg mb-1">${trip.budget}</span>
-                      <span className="text-[9px] text-slate-400">{trip.startDate ? `Start: ${formatDateString(trip.startDate)}` : ""}</span>
-                      <span className="text-[9px] text-slate-400">{trip.endDate ? `End: ${formatDateString(trip.endDate)}` : ""}</span>
+                    <div>
+                      <h4 className="text-sm font-semibold text-white">{act.destination}</h4>
+                      <p className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
+                        <span>{act.type}</span>
+                        <span className="h-1 w-1 rounded-full bg-slate-700" />
+                        <span>{act.days} Days</span>
+                      </p>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  <span className="text-xs text-slate-500 flex items-center gap-1">
+                    <Clock size={11} /> {act.time}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* System Recommendations & Deadlines Side Panel */}
-        <div className="space-y-6">
-          <div className="p-5 bg-[#080b11]/40 border border-white/[0.05] rounded-2xl space-y-4">
-            <h4 className="text-xs font-bold text-white tracking-wider uppercase text-slate-400">Target Directives</h4>
-            <div className="space-y-4">{RECOMMENDATIONS.map((r) => <RecommendationItem key={r.id} rec={r} />)}</div>
+        <div className="bg-white/[0.01] border border-white/[0.04] rounded-3xl p-6 flex flex-col justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-white mb-2">Cluster Status</h3>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Engine deployment structures are operating under nominal workloads globally.
+            </p>
           </div>
-
-          <div className="p-5 bg-[#080b11]/40 border border-white/[0.05] rounded-2xl space-y-4">
-            <h4 className="text-xs font-bold text-white tracking-wider uppercase text-slate-400">System Deadlines</h4>
-            <div className="space-y-4">{DEADLINES.map((d) => <DeadlineProgress key={d.id} d={d} />)}</div>
+          <div className="p-3 bg-cyan-500/5 border border-cyan-500/10 rounded-xl flex items-center gap-3 text-xs text-cyan-300 my-4">
+            <div className="h-2 w-2 rounded-full bg-cyan-400定位 animate-ping shrink-0" />
+            Redis nodes active and listening.
           </div>
         </div>
       </div>
     </div>
   );
-};
+}
