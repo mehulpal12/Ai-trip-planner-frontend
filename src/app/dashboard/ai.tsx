@@ -22,7 +22,8 @@ interface SavedItinerarySummary {
   };
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_AI_API || "http://localhost:4002/api/ai";
+const API_BASE = process.env.NEXT_PUBLIC_AI_API || "http://localhost:4002/api/ai/trips"; 
+// /api/ai/trips
 
 export function Ai() {
   // 1. Core Async Hooks
@@ -56,7 +57,7 @@ export function Ai() {
   const fetchUserHistory = useCallback(async () => {
     try {
       setLoadingHistory(true);
-      const response = await axios.get(`${API_BASE}/itinerary/history`);
+      const response = await axios.get(`${API_BASE}/history`);
       if (response.data?.success) {
         setHistory(response.data.data || []);
       }

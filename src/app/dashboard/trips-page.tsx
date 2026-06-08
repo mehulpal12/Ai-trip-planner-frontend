@@ -22,13 +22,29 @@ import {
   ChevronDown,
   Check,
   Users,
+  Sparkles,
+  Compass,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/authStore";
 import { Country, City } from "country-state-city";
 import { TripItem, TripMember } from "@/features/dashboard/types/dashboard.types";
 import { tripService } from "@/services/trip.service";
 
-const getErrorMessage = (error: unknown, fallback: string) =>
+interface ItineraryDay {
+  day: number;
+  title: string;
+  activities: string[];
+}
+
+interface AiItineraryResponse {
+  success: boolean;
+  source: string;
+  data: {
+    days?: ItineraryDay[];
+  } | ItineraryDay[];
+}
+
+const getErrorMessage = (error: unknown, fallback: string): string =>
   error instanceof Error ? error.message : fallback;
 
 export const TripsPage: React.FC = () => {
@@ -74,6 +90,11 @@ export const TripsPage: React.FC = () => {
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [collabDeleteTarget, setCollabDeleteTarget] = useState<TripMember | null>(null);
   const [newMemberName, setNewMemberName] = useState("");
+
+  // States managing AI Engine Integration
+  const [isGeneratingItinerary, setIsGeneratingItinerary] = useState(false);
+  const [isFetchingItinerary, setIsFetchingItinerary] = useState(false);
+  const [aiItinerary, setAiItinerary] = useState<ItineraryDay[] | null>(null);
 
   const allCountries = useMemo(() => Country.getAllCountries(), []);
 
@@ -130,7 +151,15 @@ export const TripsPage: React.FC = () => {
     return dateStr.split("T")[0];
   };
 
-  // Pipeline 1: GET /api/trips (CRUD - Read)
+  const calculateDaysBetween = (start: string, end: string): number => {
+    if (!start || !end) return 1;
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    return diffDays || 1;
+  };
+
   const fetchTrips = useCallback(async () => {
     if (!token) return;
 
@@ -147,12 +176,10 @@ export const TripsPage: React.FC = () => {
 
   useEffect(() => {
     if (!token) {
-      queueMicrotask(() => setIsLoading(false));
+      setIsLoading(false);
       return;
     }
-    queueMicrotask(() => {
-      void fetchTrips();
-    });
+    void fetchTrips();
   }, [token, fetchTrips]);
 
   const fetchTripMembers = useCallback(async (tripId: string) => {
@@ -168,15 +195,111 @@ export const TripsPage: React.FC = () => {
     }
   }, [token]);
 
+  // Read Layer Fallback: Passive verification checking if cache or DB has an itinerary ready
+  const fetchExistingItinerary = useCallback(async (tripId: string) => {
+    if (!token) return;
+    setIsFetchingItinerary(true);
+    try {
+      const response = await fetch(`http://localhost:4001/api/trips/itinerary/${tripId}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const resData: any = await response.json();
+        if (resData.success && resData.data) {
+          let targetDays = null;
+          
+          if (Array.isArray(resData.data)) {
+            // Handle array of DB itinerary records (from prisma.trip.include.itinerary)
+            if (resData.data.length > 0 && resData.data[0].itinerary) {
+              // Use the most recently created itinerary (last item)
+              const latestRecord = resData.data[resData.data.length - 1];
+              targetDays = latestRecord.itinerary?.days;
+            } else if (resData.data.length > 0 && resData.data[0].day !== undefined) {
+              // Direct array of days
+              targetDays = resData.data;
+            }
+          } else if (resData.data.days) {
+            // Object with days array
+            targetDays = resData.data.days;
+          }
+            
+          if (targetDays && Array.isArray(targetDays)) {
+            setAiItinerary(targetDays);
+          }
+        }
+      }
+    } catch (err: unknown) {
+      console.warn("Passive Cache Resolution Missed:", err);
+    } finally {
+      setIsFetchingItinerary(false);
+    }
+  }, [token]);
+
   useEffect(() => {
     if (selectedTrip) {
-      queueMicrotask(() => {
-        void fetchTripMembers(selectedTrip._id);
-      });
+      setAiItinerary(null);
+      void fetchTripMembers(selectedTrip._id);
+      void fetchExistingItinerary(selectedTrip._id);
     }
-  }, [selectedTrip, fetchTripMembers]);
+  }, [selectedTrip, fetchTripMembers, fetchExistingItinerary]);
 
-  // Pipeline 2: POST & PUT Orchestrator (CRUD - Create & Update)
+  // Integrated Generation Pipeline mapped directly to the correct dynamic parameter route
+  const generateAiItinerary = async (trip: TripItem) => {
+    if (!token || !trip) return;
+
+    setIsGeneratingItinerary(true);
+    try {
+      const calculatedDays = calculateDaysBetween(trip.startDate, trip.endDate);
+      
+      const response = await fetch(
+        `http://localhost:4002/api/ai/trips/${trip._id}/itinerary/generate`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            destination: trip.destination && trip.title,
+            days: calculatedDays,
+            budget: trip.budget,
+            notes: trip.notes || "Interested in art museums, local bakeries, and historical architecture. Traveling solo.",
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Agent returned bad status execution sequence: ${response.status}`);
+      }
+
+      const resData: AiItineraryResponse = await response.json();
+      
+      if (resData.success && resData.data) {
+        // Defensive Architecture Strategy: Handles structural shape updates seamlessly
+        const finalDays = Array.isArray(resData.data)
+          ? resData.data
+          : resData.data.days;
+
+        if (!finalDays) {
+          throw new Error("Target matrix payload missing array layout attributes.");
+        }
+
+        setAiItinerary(finalDays);
+        triggerToast(`Itinerary generated via ${resData.source || "AI Engine"}`);
+      } else {
+        throw new Error("Failed validation layout structure on processing data.");
+      }
+    } catch (err: unknown) {
+      triggerToast(`AI Runtime Pipeline Error: ${getErrorMessage(err, "Inference failed")}`);
+    } finally {
+      setIsGeneratingItinerary(false);
+    }
+  };
+
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
@@ -196,7 +319,6 @@ export const TripsPage: React.FC = () => {
 
         try {
           const finalTrip = await tripService.updateTrip(editingTrip._id, payload);
-          
           if (selectedTrip?._id === editingTrip._id) {
             setSelectedTrip(finalTrip);
           }
@@ -211,13 +333,12 @@ export const TripsPage: React.FC = () => {
         triggerToast(`"${formState.title}" successfully organized and serialized!`);
       }
       setIsModalOpen(false);
-      fetchTrips();
+      void fetchTrips();
     } catch (err: unknown) {
       triggerToast(`Pipeline error: ${getErrorMessage(err, "Unknown error")}`);
     }
   };
 
-  // Pipeline 3: DELETE /api/trips/:id (CRUD - Delete)
   const handleDeleteTrip = async (id: string, e?: React.MouseEvent) => {
     if (!token) return;
 
@@ -251,7 +372,7 @@ export const TripsPage: React.FC = () => {
       triggerToast("Member added successfully");
       setShowAddMemberModal(false);
       setNewMemberName("");
-      fetchTripMembers(selectedTrip._id);
+      void fetchTripMembers(selectedTrip._id);
     } catch {
       triggerToast("Failed to add member");
     }
@@ -262,7 +383,6 @@ export const TripsPage: React.FC = () => {
 
     try {
       await tripService.removeMember(selectedTrip._id, member.userId);
-
       setMembers((current) => current.filter((item) => item.userId !== member.userId));
       setCollabDeleteTarget(null);
       triggerToast("Member removed");
@@ -365,7 +485,7 @@ export const TripsPage: React.FC = () => {
             </div>
             <button
               onClick={openCreateModal}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-500 text-[#080a10] text-sm font-semibold hover:bg-cyan-400 transition-all duration-200 shadow-[0_0_20px_rgba(0,209,255,0.2)] cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-50 text-[#080a10] text-sm font-semibold hover:bg-cyan-400 transition-all duration-200 shadow-[0_0_20px_rgba(0,209,255,0.2)] cursor-pointer"
             >
               <Plus size={16} /> Organize Trip
             </button>
@@ -438,7 +558,7 @@ export const TripsPage: React.FC = () => {
                 Failed sync sequence: {apiError}
               </p>
               <button
-                onClick={fetchTrips}
+                onClick={() => void fetchTrips()}
                 className="text-xs bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors"
               >
                 Re-attempt Sync
@@ -605,7 +725,22 @@ export const TripsPage: React.FC = () => {
                         : selectedTrip.destination}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => void generateAiItinerary(selectedTrip)}
+                      disabled={isGeneratingItinerary || isFetchingItinerary}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-[#080a10] text-xs font-bold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_15px_rgba(0,209,255,0.3)] cursor-pointer"
+                    >
+                      {isGeneratingItinerary ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" /> Querying Engine...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={13} /> AI Itinerary
+                        </>
+                      )}
+                    </button>
                     <button
                       onClick={(e) => openEditModal(selectedTrip, e)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-medium hover:bg-white/10 text-slate-200 transition-all cursor-pointer"
@@ -660,7 +795,73 @@ export const TripsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="border border-white/[0.07] bg-white/[0.03] backdrop-blur-xl p-6 rounded-2xl">
+              {/* Dynamic Presentation Pipeline Window Render Segment */}
+              <AnimatePresence mode="wait">
+                {isFetchingItinerary ? (
+                  <div className="flex items-center justify-center p-8 border border-white/[0.05] bg-[#0c0f17]/40 rounded-2xl gap-2 text-xs text-slate-400">
+                    <Loader2 size={14} className="animate-spin text-cyan-400" />
+                    <span>Resolving cached schedule layout nodes...</span>
+                  </div>
+                ) : aiItinerary && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -15 }}
+                    className="border border-cyan-500/20 bg-gradient-to-b from-cyan-950/10 to-[#0c0f17] backdrop-blur-xl p-6 rounded-2xl space-y-6 shadow-[0_0_40px_rgba(6,182,212,0.05)]"
+                  >
+                    <div className="flex items-center justify-between border-b border-white/[0.06] pb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
+                          <Compass size={16} />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-bold text-white flex items-center gap-2">
+                            Generated Smart Track Matrix
+                          </h3>
+                          <p className="text-[11px] text-slate-400">
+                            Custom schedule tailored by nvidia-gemma core
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setAiItinerary(null)}
+                        className="text-slate-500 hover:text-slate-300 transition-colors p-1"
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+
+                    <div className="space-y-6 relative before:absolute before:left-3.5 before:top-2 before:bottom-2 before:w-px before:bg-gradient-to-b before:from-cyan-500/40 before:to-transparent">
+                      {aiItinerary.map((dayPlan) => (
+                        <div key={dayPlan.day} className="relative pl-9 group">
+                          <div className="absolute left-1.5 top-1.5 h-4 w-4 rounded-full bg-[#0c0f17] border-2 border-cyan-400 flex items-center justify-center text-[9px] font-bold text-cyan-400 group-hover:scale-110 transition-transform shadow-[0_0_10px_rgba(6,182,212,0.4)]">
+                            {dayPlan.day}
+                          </div>
+                          <div className="bg-[#080a10]/40 border border-white/[0.05] hover:border-cyan-500/20 p-4 rounded-xl transition-all">
+                            <h4 className="text-sm font-bold text-slate-100 group-hover:text-cyan-300 transition-colors">
+                              {dayPlan.title}
+                            </h4>
+                            <ul className="mt-3 space-y-2">
+                              
+                              {dayPlan.activities?.map((activity, aIdx) => (
+                                <li
+                                  key={`${dayPlan.day}-activity-${aIdx}`}
+                                  className="text-xs text-slate-400 flex items-start gap-2 leading-relaxed"
+                                >
+                                  <span className="text-cyan-500 mt-1 select-none">•</span>
+                                  <span>{activity}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* <div className="border border-white/[0.07] bg-white/[0.03] backdrop-blur-xl p-6 rounded-2xl">
                 <h3 className="text-base font-bold text-white mb-4">
                   Activity Timeline Log
                 </h3>
@@ -683,11 +884,11 @@ export const TripsPage: React.FC = () => {
                     No automated tracking changes registered on this channel framework yet.
                   </p>
                 )}
-              </div>
+              </div> */}
             </div>
 
             <div className="xl:col-span-4 space-y-6">
-              <div className="border border-white/[0.07] bg-white/[0.03] backdrop-blur-xl p-5 rounded-2xl">
+              {/* <div className="border border-white/[0.07] bg-white/[0.03] backdrop-blur-xl p-5 rounded-2xl">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
                   Owner Details
                 </h3>
@@ -710,7 +911,7 @@ export const TripsPage: React.FC = () => {
                     </p>
                   </div>
                 </div>
-              </div>
+              </div> */}
 
               <div className="border border-white/[0.07] bg-white/[0.03] backdrop-blur-xl p-5 rounded-2xl space-y-4">
                 <div className="flex items-center justify-between">
@@ -752,7 +953,7 @@ export const TripsPage: React.FC = () => {
                       const finalName = m.memberName || m.name || "Unknown Member";
                       return (
                         <div
-                          key={m._id || m.id}
+                          key={m.userId}
                           className="flex items-center justify-between p-2 bg-[#080a10]/20 rounded-xl border border-white/[0.02] hover:border-white/[0.05] group"
                         >
                           <div className="flex items-center gap-2.5 text-sm text-slate-300 min-w-0">
@@ -1068,7 +1269,7 @@ export const TripsPage: React.FC = () => {
                   Abort
                 </button>
                 <button
-                  onClick={() => handleRemoveMember(collabDeleteTarget)}
+                  onClick={() => void handleRemoveMember(collabDeleteTarget)}
                   className="flex-1 py-2 rounded-xl bg-rose-500 text-white text-xs font-semibold hover:bg-rose-400 transition-colors"
                 >
                   Sever Node Connections
@@ -1108,7 +1309,7 @@ export const TripsPage: React.FC = () => {
                   Abort
                 </button>
                 <button
-                  onClick={() => handleDeleteTrip(showDeleteConfirm)}
+                  onClick={() => void handleDeleteTrip(showDeleteConfirm)}
                   className="flex-1 py-2 rounded-xl bg-rose-500 text-white text-xs font-semibold hover:bg-rose-400 transition-colors"
                 >
                   Confirm Removal

@@ -37,19 +37,31 @@ export interface GeminiItineraryPayload {
 }
 
 /**
- * Represents a single normalized trip entity as returned by the global Redis cache database layer.
+ * Represents a normalized trip entity as returned by the Trip service (MongoDB document).
+ * The `_id` field is the MongoDB ObjectId, normalized from either `_id` or `id` on the raw API response.
  */
 export interface TripItem {
-  id: string;               // The Redis key pattern string (e.g., "itinerary:Japan:7:Adventure")
-  destination: string;      // Extracted parameter key
-  days: number;             // Total duration parameter key
-  budget: number;           // Total budget allocation parameter key
-  travelStyle: string;      // Behavioral parameter key
-  createdAt?: string;       // Optional string timestamp metadata
-  fullData: {
-    source: "redis" | "api" | string;
-    data: GeminiItineraryPayload; // The pure internal travel payload block
-  };
+  _id: string;              // MongoDB ObjectId (normalized from raw `_id` or `id`)
+  title: string;            // Trip display name
+  destination: string;      // Primary destination city
+  country?: string;         // Country of the destination
+  startDate: string;        // ISO date string for trip start
+  endDate: string;          // ISO date string for trip end
+  budget: number;           // Total budget allocation
+  notes?: string;           // Optional trip notes / description
+  createdAt?: string;       // Optional ISO timestamp
+}
+
+/**
+ * Represents a collaborator/member on a shared trip.
+ */
+export interface TripMember {
+  userId: string;           // The member's user ID
+  memberName?: string;      // Display name as stored on the trip
+  name?: string;            // Fallback display name from user profile
+  email?: string;           // Member email address
+  role?: string;            // Member role (e.g. "owner", "editor", "viewer")
+  avatar?: string;          // Optional profile picture URL
 }
 
 /**

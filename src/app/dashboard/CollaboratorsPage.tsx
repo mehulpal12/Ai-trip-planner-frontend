@@ -55,7 +55,7 @@ const CollaboratorsPage: React.FC<Props> = ({
     } finally {
       setLoading(false);
     }
-  }, [accessToken, triggerToast]);
+  }, [triggerToast]);
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,7 +188,7 @@ const CollaboratorsPage: React.FC<Props> = ({
             ) : (
               filteredMembers.map((member) => (
                 <div
-                  key={member.id}
+                  key={member.userId}
                   className="flex justify-between items-center p-4 border-b border-white/5 last:border-none"
                 >
                   <div className="flex items-center gap-3">

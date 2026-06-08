@@ -13,9 +13,8 @@ type TripPayload = {
   notes?: string;
 };
 
-type RawTrip = Omit<Partial<TripItem>, "_id"> & {
+type RawTrip = Partial<TripItem> & {
   id?: string;
-  _id?: string;
   description?: string;
   destinations?: Array<{
     city?: string | null;
@@ -27,13 +26,17 @@ type RawTrip = Omit<Partial<TripItem>, "_id"> & {
 const normalizeTrip = (trip: RawTrip): TripItem => ({
   ...trip,
   _id: trip._id || trip.id || "",
+  title: trip.title || "",
   destination:
     trip.destination ||
     trip.destinations?.[0]?.city ||
     trip.destinations?.[0]?.name ||
     "",
+  startDate: trip.startDate || "",
+  endDate: trip.endDate || "",
+  budget: trip.budget ?? 0,
   notes: trip.notes || trip.description || "",
-} as TripItem);
+});
 
 export const tripService = {
   async getTrips(): Promise<TripItem[]> {
