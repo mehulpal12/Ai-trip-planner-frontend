@@ -28,7 +28,7 @@ import { tripService } from "@/services/trip.service";
 
 import { TripsPage } from "./trips-page";
 import CollaboratorsPage from "./CollaboratorsPage";
-import { Ai } from "./ai";
+// import { Ai } from "./ai";
 
 export default function MainDashboard() {
   const router = useRouter();
@@ -84,7 +84,7 @@ export default function MainDashboard() {
     { label: "Dashboard", icon: LayoutDashboard },
     { label: "Trip Blueprints", icon: Compass },
     { label: "Collaborators", icon: Users },
-    { label: "AI Guide Node", icon: Sparkles },
+    // { label: "AI Guide Node", icon: Sparkles },
   ];
 
   return (
@@ -260,7 +260,7 @@ export default function MainDashboard() {
                   triggerToast={() => {}}
                 />
               )}
-              {activeTab === "AI Guide Node" && <Ai />}
+              {/* {activeTab === "AI Guide Node" && <Ai />} */}
             </div>
           </div>
         </main>

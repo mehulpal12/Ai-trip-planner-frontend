@@ -10,12 +10,12 @@ export const aiService = {
   async generateItinerary(
     payload: GenerateItineraryRequest
   ): Promise<GenerateItineraryResponse> {
-
+    const { tripId, ...rest } = payload;
     const response =
       await api.post<
         ApiResponse<GenerateItineraryResponse>
       >(
-        `${API_ROUTES.AI}/itinerary/generate`,
+        `${API_ROUTES.AI}/generate`,
         payload
       );
 

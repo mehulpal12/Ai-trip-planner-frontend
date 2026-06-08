@@ -3,6 +3,7 @@ export interface GenerateItineraryRequest {
   days: number;
   budget: number;
   travelStyle: string;
+  tripId: string;
 }
 
 export interface Activity {
