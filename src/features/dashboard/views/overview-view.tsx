@@ -26,11 +26,11 @@ export function OverviewView({ trips, isLoading, userDisplayName, setActiveTab }
   // Dynamic calculation based on live incoming trips from your Redis pool
   const totalTripsCount = trips.length;
   const recentActivities = trips.slice(0, 3).map((trip) => ({
-    id: trip.id,
+    id: (trip._id) as string,
     destination: trip.destination,
-    type: trip.travelStyle,
+    // type: trip.travelStyle,
     time: "Saved Itinerary",
-    days: trip.days
+    // days: trip.days
   }));
 
   const operationalStats = [
@@ -137,9 +137,9 @@ export function OverviewView({ trips, isLoading, userDisplayName, setActiveTab }
                     <div>
                       <h4 className="text-sm font-semibold text-white">{act.destination}</h4>
                       <p className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
-                        <span>{act.type}</span>
+                        {/* <span>{act.type}</span> */}
                         <span className="h-1 w-1 rounded-full bg-slate-700" />
-                        <span>{act.days} Days</span>
+                        {/* <span>{act.days} Days</span> */}
                       </p>
                     </div>
                   </div>

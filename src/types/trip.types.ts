@@ -30,7 +30,8 @@ export interface DayPlanNode {
  * Matches your core application state, Redis cache matrices, and UI views.
  */
 export interface TripItem {
-  id?: string;                    // Optional database primary key id
+  id?: string; 
+  _id?: string;                   // Optional database primary key id
   userId?: string;                // Reference pointer tracking ownership nodes
   destination: string;            // Name of target travel location (e.g. "Rishikesh, India")
   totalEstimatedCost: number;     // Grand total aggregate calculations
