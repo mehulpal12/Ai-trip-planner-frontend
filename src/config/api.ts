@@ -13,7 +13,7 @@ const resolveApiRoute = (route: string | undefined, fallback: string) => {
 export const API_ROUTES = {
   USERS: resolveApiRoute(process.env.NEXT_PUBLIC_USERS_API, "/api/users"),
   TRIPS: resolveApiRoute(process.env.NEXT_PUBLIC_TRIPS_API, "/api/trips"),
-  AI: resolveApiRoute(process.env.NEXT_PUBLIC_AI_API, "/api/ai"),
+  AI: resolveApiRoute(process.env.NEXT_PUBLIC_AI_API, "/api/ai/trips"),
 };
 
 export { API_BASE_URL };

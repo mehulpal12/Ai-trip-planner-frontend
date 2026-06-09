@@ -33,6 +33,10 @@ export const aiService = {
 
     const { jobId } = initialResponse.data.data;
 
+    if (!jobId) {
+      throw new Error("AI service did not return a job tracking id.");
+    }
+
     // 2. Poll the status route until execution shifts to 'completed' or 'failed'
     return new Promise((resolve, reject) => {
       const maxRetries = 30; // Max out at 75 seconds (30 * 2.5s) to catch timeout drops

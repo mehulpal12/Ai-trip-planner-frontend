@@ -26,9 +26,11 @@ import {
   Compass,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/authStore";
+import { API_ROUTES } from "@/config/api";
 import { Country, City } from "country-state-city";
 import { TripItem, TripMember } from "@/features/dashboard/types/dashboard.types";
 import { tripService } from "@/services/trip.service";
+import { aiService } from "@/services/ai.service";
 
 interface ItineraryDay {
   day: number;
@@ -200,7 +202,7 @@ export const TripsPage: React.FC = () => {
     if (!token) return;
     setIsFetchingItinerary(true);
     try {
-      const response = await fetch(`http://localhost:4001/api/trips/itinerary/${tripId}`, {
+      const response = await fetch(`${API_ROUTES.TRIPS}/itinerary/${tripId}`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -254,31 +256,15 @@ export const TripsPage: React.FC = () => {
     setIsGeneratingItinerary(true);
     try {
       const calculatedDays = calculateDaysBetween(trip.startDate, trip.endDate);
+      const resData = await aiService.generateItinerary({
+        tripId: trip._id,
+        destination: trip.destination || trip.title,
+        days: calculatedDays,
+        budget: trip.budget,
+        travelStyle: "Adventure",
+      });
       
-      const response = await fetch(
-        `http://localhost:4002/api/ai/trips/${trip._id}/itinerary/generate`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            destination: trip.destination && trip.title,
-            days: calculatedDays,
-            budget: trip.budget,
-            notes: trip.notes || "Interested in art museums, local bakeries, and historical architecture. Traveling solo.",
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Agent returned bad status execution sequence: ${response.status}`);
-      }
-
-      const resData: AiItineraryResponse = await response.json();
-      
-      if (resData.success && resData.data) {
+      if (resData?.data) {
         // Defensive Architecture Strategy: Handles structural shape updates seamlessly
         const finalDays = Array.isArray(resData.data)
           ? resData.data
