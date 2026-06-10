@@ -421,11 +421,11 @@ export const TripsPage: React.FC = () => {
         t.country?.toLowerCase().includes(search.toLowerCase())
     );
 
-    return filtered.sort((a, b) => {
-      if (sortBy === "title") return a.title.localeCompare(b.title);
-      if (sortBy === "budget") return b.budget - a.budget;
-      return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
-    });
+return filtered.sort((a, b) => {
+  if (sortBy === "title") return a.title.localeCompare(b.title);
+  if (sortBy === "budget") return b.budget - a.budget;
+  return new Date(b.startDate).getTime() - new Date(a.startDate).getTime();
+});
   }, [trips, search, sortBy]);
 
   const paginatedTrips = useMemo(() => {

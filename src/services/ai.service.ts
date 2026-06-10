@@ -27,7 +27,7 @@ export const aiService = {
 
     // 1. Dispatch payload to the updated route path. Returns `{ success: true, jobId: "..." }`
     const initialResponse = await api.post<ApiResponse<{ jobId: string }>>(
-      `${API_ROUTES.AI}/${tripId}/itinerary/generate`,
+      `${API_ROUTES.AI}/trips/${tripId}/itinerary/generate`,
       requestBody
     );
 
@@ -57,7 +57,7 @@ export const aiService = {
             progress: number;
             result?: any;
             error?: string;
-          }>>(`${API_ROUTES.AI}/itinerary/jobs/${jobId}`);
+          }>>(`${API_ROUTES.AI}/trips/itinerary/jobs/${jobId}`);
 
           const job = statusCheck.data.data;
 
